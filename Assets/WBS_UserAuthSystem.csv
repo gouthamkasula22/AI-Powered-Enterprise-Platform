@@ -1,0 +1,117 @@
+WBS_ID,Task_Name,Duration_Hours,Milestone,Dependencies,Tech_Stack,Priority,Estimated_Effort,Deliverable,Review_Required
+1.0,PROJECT INITIATION & SETUP,1.25,Setup,None,"Python, Node.js, PostgreSQL, Git, Docker",Critical,1.25 hours,Development Environment,No
+1.1,Environment Configuration,1.0,Setup,None,"Python, Node.js, PostgreSQL",Critical,1.0 hours,Configured Environment,No
+1.1.1,Setup Development Environment,0.5,Setup,None,"Python 3.11+, Node.js 18+, PostgreSQL",Critical,30 mins,Working Development Environment,No
+1.1.2,Project Structure Creation,0.25,Setup,1.1.1,"Git, File System",Critical,15 mins,Project Folders and Git Repo,No
+1.1.3,Docker Configuration,0.5,Setup,1.1.2,"Docker, Docker Compose",Critical,30 mins,Docker Environment,No
+
+2.0,MILESTONE 1: FULL-STACK FOUNDATION & DATABASE SETUP,6.5,Milestone 1,1.0,"FastAPI, React, PostgreSQL, Tailwind CSS",Critical,6.5 hours,Foundation Architecture,Yes
+2.1,Backend Foundation,3.75,Milestone 1,1.0,"FastAPI, SQLAlchemy, PostgreSQL, Alembic",Critical,3.75 hours,Backend API Structure,No
+2.1.1,FastAPI Project Setup,0.75,Milestone 1,1.1.3,"FastAPI, Python, Uvicorn",Critical,45 mins,FastAPI Application,No
+2.1.2,Database Configuration,1.0,Milestone 1,2.1.1,"SQLAlchemy, Alembic, PostgreSQL, AsyncPG",Critical,60 mins,Database Connection,No
+2.1.3,Core Models Development,1.5,Milestone 1,2.1.2,"SQLAlchemy, Pydantic",Critical,90 mins,Database Models,No
+2.1.4,Database Migrations,0.5,Milestone 1,2.1.3,"Alembic, PostgreSQL",Critical,30 mins,Migration Scripts,No
+
+2.2,Frontend Foundation,3.0,Milestone 1,1.0,"React, Vite, Tailwind CSS",Critical,3.0 hours,Frontend Structure,No
+2.2.1,React Project Setup,0.75,Milestone 1,1.1.3,"React, Vite, Tailwind CSS, ESLint",Critical,45 mins,React Application,No
+2.2.2,Project Structure & Routing,1.0,Milestone 1,2.2.1,"React Router, React",Critical,60 mins,Navigation Structure,No
+2.2.3,Core UI Components,1.25,Milestone 1,2.2.2,"React, Tailwind CSS, Heroicons",Critical,75 mins,Reusable Components,No
+
+2.3,Basic API Endpoints,1.75,Milestone 1,2.1,"FastAPI, Pydantic",Critical,1.75 hours,Authentication Endpoints,No
+2.3.1,Authentication Endpoints Structure,1.0,Milestone 1,2.1.4,"FastAPI, Pydantic",Critical,60 mins,Auth Router,No
+2.3.2,Input Validation & Schemas,0.75,Milestone 1,2.3.1,"Pydantic, FastAPI",Critical,45 mins,Validation Schemas,No
+
+2.4,Milestone 1 Review,1.5,Milestone 1,2.3,"Review Templates",Critical,1.5 hours,Quality Assessment,Yes
+2.4.1,Security Review,0.5,Milestone 1,2.3.2,Security Assessment Tools,Critical,30 mins,Security Score 9.0+,Yes
+2.4.2,Architecture Review,0.5,Milestone 1,2.3.2,Architecture Assessment,Critical,30 mins,Architecture Score 8.5+,Yes
+2.4.3,Code Quality Review,0.5,Milestone 1,2.3.2,Code Quality Tools,Critical,30 mins,Code Quality Score 8.5+,Yes
+
+3.0,MILESTONE 2: AUTHENTICATION SYSTEM & JWT IMPLEMENTATION,7.5,Milestone 2,2.0,"JWT, bcrypt, Email Services",Critical,7.5 hours,Authentication System,Yes
+3.1,JWT Authentication System,3.75,Milestone 2,2.4,"Python-JOSE, PyJWT, FastAPI",Critical,3.75 hours,JWT Implementation,No
+3.1.1,JWT Configuration,1.0,Milestone 2,2.4,"Python-JOSE, PyJWT",Critical,60 mins,JWT Configuration,No
+3.1.2,Token Management System,1.5,Milestone 2,3.1.1,"FastAPI, SQLAlchemy, Redis",Critical,90 mins,Token Management,No
+3.1.3,Authentication Middleware,1.25,Milestone 2,3.1.2,"FastAPI, Python",Critical,75 mins,Protected Routes,No
+
+3.2,Password Security,2.25,Milestone 2,2.4,"Passlib, Bcrypt",Critical,2.25 hours,Secure Password System,No
+3.2.1,Password Hashing Implementation,0.75,Milestone 2,2.4,"Passlib, Bcrypt",Critical,45 mins,Password Utilities,No
+3.2.2,Secure Authentication Flow,1.5,Milestone 2,3.2.1,"FastAPI, SQLAlchemy, Passlib",Critical,90 mins,Auth Endpoints,No
+
+3.3,Email Service & OTP,2.25,Milestone 2,2.4,"FastAPI-Mail, SendGrid, SMTP",Medium,2.25 hours,Email System,No
+3.3.1,Email Service Setup,1.0,Milestone 2,2.4,"FastAPI-Mail, SendGrid, SMTP",Medium,60 mins,Email Service,No
+3.3.2,OTP Implementation,1.25,Milestone 2,3.3.1,"Python, SQLAlchemy, FastAPI",Medium,75 mins,OTP System,No
+
+3.4,Frontend Authentication,4.5,Milestone 2,2.2,"React Context, Axios, React Hook Form",Critical,4.5 hours,Frontend Auth,No
+3.4.1,Authentication Context,1.5,Milestone 2,2.2.3,"React Context, Axios",Critical,90 mins,Auth Context,No
+3.4.2,Authentication Forms,2.0,Milestone 2,3.4.1,"React Hook Form, Tailwind CSS",Critical,120 mins,Auth Forms,No
+3.4.3,Protected Routes,1.0,Milestone 2,3.4.2,"React Router, React",Critical,60 mins,Route Guards,No
+
+3.5,Milestone 2 Review,1.25,Milestone 2,3.4,"Review Templates",Critical,1.25 hours,Auth Quality Assessment,Yes
+3.5.1,Security Review,0.75,Milestone 2,3.4.3,Security Assessment Tools,Critical,45 mins,Security Score 9.0+,Yes
+3.5.2,Performance Review,0.5,Milestone 2,3.4.3,Performance Testing Tools,Critical,30 mins,Response Time <200ms,Yes
+
+4.0,MILESTONE 3: DASHBOARD & PRODUCTION FEATURES,5.75,Milestone 3,3.0,"React, Tailwind CSS, FastAPI",High,5.75 hours,Production Dashboard,Yes
+4.1,Claude-like Dashboard UI,3.75,Milestone 3,3.5,"React, Tailwind CSS",High,3.75 hours,Dashboard Interface,No
+4.1.1,Dashboard Layout Structure,1.5,Milestone 3,3.5,"React, Tailwind CSS",High,90 mins,Layout Structure,No
+4.1.2,Sidebar Components,1.25,Milestone 3,4.1.1,"React, Tailwind CSS, Heroicons",High,75 mins,Sidebar Components,No
+4.1.3,Main Content Area,1.0,Milestone 3,4.1.2,"React, Tailwind CSS",High,60 mins,Main Content,No
+
+4.2,User Profile Management,3.75,Milestone 3,3.5,"React, FastAPI, SQLAlchemy",High,3.75 hours,Profile System,No
+4.2.1,Profile Viewing/Editing,1.5,Milestone 3,3.5,"React, FastAPI, SQLAlchemy",High,90 mins,Profile Management,No
+4.2.2,Account Settings,1.0,Milestone 3,4.2.1,"React, FastAPI",High,60 mins,Settings Page,No
+4.2.3,Session Management,1.25,Milestone 3,4.2.2,"React, FastAPI, SQLAlchemy",High,75 mins,Session Control,No
+
+4.3,Error Handling & UX,2.5,Milestone 3,3.5,"React, Axios, React Hot Toast",High,2.5 hours,Error System,No
+4.3.1,Global Error Handling,1.0,Milestone 3,3.5,"React, Axios",High,60 mins,Error Boundary,No
+4.3.2,User Feedback System,0.75,Milestone 3,4.3.1,"React Hot Toast, React",High,45 mins,Feedback System,No
+4.3.3,Custom Error Pages,0.75,Milestone 3,4.3.2,"React, Tailwind CSS",High,45 mins,Error Pages,No
+
+4.4,Milestone 3 Review,1.25,Milestone 3,4.3,"Review Templates",High,1.25 hours,Production Quality Assessment,Yes
+4.4.1,Architecture Review,0.75,Milestone 3,4.3.3,Architecture Assessment,High,45 mins,Architecture Score 8.5+,Yes
+4.4.2,Performance Review,0.5,Milestone 3,4.3.3,Performance Testing Tools,High,30 mins,Performance Targets Met,Yes
+
+5.0,MILESTONE 4: SOCIAL AUTHENTICATION INTEGRATION,6.5,Milestone 4,4.0,"OAuth 2.0, Provider APIs",Medium,6.5 hours,Social Auth System,Yes
+5.1,OAuth Provider Setup,1.75,Milestone 4,4.4,"OAuth 2.0, Provider APIs",Medium,1.75 hours,OAuth Configuration,No
+5.1.1,Provider Registration,1.0,Milestone 4,4.4,"OAuth 2.0, Provider APIs",Medium,60 mins,Provider Apps,No
+5.1.2,OAuth Configuration,0.75,Milestone 4,5.1.1,"Environment Variables, OAuth 2.0",Medium,45 mins,OAuth Config,No
+
+5.2,Backend OAuth Implementation,2.75,Milestone 4,5.1,"FastAPI, HTTPX, OAuth libraries",Medium,2.75 hours,OAuth Backend,No
+5.2.1,OAuth Endpoints,1.5,Milestone 4,5.1.2,"FastAPI, HTTPX, OAuth libraries",Medium,90 mins,OAuth Endpoints,No
+5.2.2,User Profile Integration,1.25,Milestone 4,5.2.1,"FastAPI, SQLAlchemy, HTTPX",Medium,75 mins,Profile Integration,No
+
+5.3,Account Linking System,2.5,Milestone 4,5.2,"SQLAlchemy, Python",Medium,2.5 hours,Account Linking,No
+5.3.1,Link Social Accounts,1.5,Milestone 4,5.2.2,"SQLAlchemy, Python",Medium,90 mins,Linking Logic,No
+5.3.2,Profile Data Merging,1.0,Milestone 4,5.3.1,"Python, SQLAlchemy",Medium,60 mins,Data Merging,No
+
+5.4,Frontend Social Login,2.25,Milestone 4,5.3,"React, OAuth libraries",Medium,2.25 hours,Social Login UI,No
+5.4.1,Social Login Buttons,1.25,Milestone 4,5.3.2,"React, OAuth libraries",Medium,75 mins,Login Buttons,No
+5.4.2,OAuth Flow Management,1.0,Milestone 4,5.4.1,"React, JavaScript",Medium,60 mins,OAuth Flow,No
+
+5.5,Milestone 4 Review,1.25,Milestone 4,5.4,"Review Templates",Medium,1.25 hours,Social Auth Quality Assessment,Yes
+5.5.1,Security Review,0.75,Milestone 4,5.4.2,Security Assessment Tools,Medium,45 mins,Security Score 9.0+,Yes
+5.5.2,User Experience Review,0.5,Milestone 4,5.4.2,UX Testing Tools,Medium,30 mins,UX Validation,Yes
+
+6.0,TESTING & QUALITY ASSURANCE,5.5,Testing,5.0,"PyTest, Jest, Cypress, OWASP ZAP",High,5.5 hours,Testing Suite,No
+6.1,Unit Testing,2.75,Testing,5.5,"PyTest, Jest, React Testing Library",High,2.75 hours,Unit Test Suite,No
+6.1.1,Backend Unit Tests,1.5,Testing,5.5,"PyTest, FastAPI TestClient",High,90 mins,Backend Tests,No
+6.1.2,Frontend Unit Tests,1.25,Testing,6.1.1,"Jest, React Testing Library",High,75 mins,Frontend Tests,No
+
+6.2,Integration Testing,2.5,Testing,6.1,"PyTest, Playwright, Cypress",High,2.5 hours,Integration Tests,No
+6.2.1,Authentication Flow Testing,1.5,Testing,6.1.2,"PyTest, Playwright/Cypress",High,90 mins,Flow Tests,No
+6.2.2,API Integration Testing,1.0,Testing,6.2.1,"PyTest, HTTPX",High,60 mins,API Tests,No
+
+6.3,Security Testing,2.25,Testing,6.2,"OWASP ZAP, Manual Testing",Critical,2.25 hours,Security Assessment,No
+6.3.1,Vulnerability Assessment,1.25,Testing,6.2.2,"OWASP ZAP, Manual Testing",Critical,75 mins,Vulnerability Report,No
+6.3.2,Authentication Security Testing,1.0,Testing,6.3.1,"Manual Testing, Security Tools",Critical,60 mins,Auth Security Report,No
+
+7.0,DEPLOYMENT & DOCUMENTATION,4.5,Deployment,6.0,"Deployment Platforms, Markdown",Medium,4.5 hours,Production Ready System,No
+7.1,Production Preparation,1.75,Deployment,6.3,"Environment Config, SSL, Redis",Medium,1.75 hours,Production Config,No
+7.1.1,Environment Configuration,0.75,Deployment,6.3.2,"Environment Config, SSL",Medium,45 mins,Production Environment,No
+7.1.2,Performance Optimization,1.0,Deployment,7.1.1,"Redis, Build Optimization",Medium,60 mins,Optimized System,No
+
+7.2,Documentation,2.5,Deployment,7.1,"FastAPI Docs, Markdown",Medium,2.5 hours,Complete Documentation,No
+7.2.1,Technical Documentation,1.5,Deployment,7.1.2,"FastAPI Docs, Markdown",Medium,90 mins,Technical Docs,No
+7.2.2,User Documentation,1.0,Deployment,7.2.1,"Markdown, Screenshots",Medium,60 mins,User Docs,No
+
+7.3,Final Review & Delivery,2.0,Deployment,7.2,"Git, Deployment Platform",Critical,2.0 hours,Final Deliverables,Yes
+7.3.1,Final Quality Review,1.25,Deployment,7.2.2,Review Tools,Critical,75 mins,Quality Report,Yes
+7.3.2,Project Delivery,0.75,Deployment,7.3.1,"Git, Deployment Platform",Critical,45 mins,Live System,No
