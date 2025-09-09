@@ -56,7 +56,8 @@ class TestDatabaseOperations:
         # Simulate concurrent operations
         async def execute_query(session: AsyncSession, query_id: int) -> int:
             result = await session.execute(text(f"SELECT {query_id} as id"))
-            return result.scalar()
+            value = result.scalar()
+            return value if value is not None else 0
         
         # Execute multiple queries concurrently
         tasks = [execute_query(test_session, i) for i in range(5)]

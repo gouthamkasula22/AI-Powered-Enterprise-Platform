@@ -140,7 +140,7 @@ class UserSession(BaseModel):
     __table_args__ = (
         # Ensure IP address format if provided
         CheckConstraint(
-            "ip_address IS NULL OR ip_address ~ '^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$'",
+            r"ip_address IS NULL OR ip_address ~ '^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$|^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$'",
             name='valid_ip_format'
         ),
         # Composite indexes for common queries

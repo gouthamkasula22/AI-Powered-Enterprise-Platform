@@ -240,7 +240,7 @@ class LoginHistory(BaseModel):
         
         return min(1.0, score)
     
-    def mark_suspicious(self, reason: str = None) -> None:
+    def mark_suspicious(self, reason: str | None = None) -> None:
         """Mark this login attempt as suspicious."""
         self.is_suspicious = True
         if reason and not self.failure_reason:

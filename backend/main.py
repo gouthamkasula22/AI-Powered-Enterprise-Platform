@@ -151,10 +151,33 @@ def create_app() -> FastAPI:
             }
         )
     
-    # Include routers (will be added progressively)
-    # app.include_router(auth.router, prefix="/api/v1/auth", tags=["authentication"])
-    # app.include_router(users.router, prefix="/api/v1/users", tags=["users"])
-    # app.include_router(oauth.router, prefix="/api/v1/oauth", tags=["oauth"])
+    # Include authentication routes
+    try:
+        from app.api.v1 import api_router
+        app.include_router(api_router)
+        logger.info("✅ Authentication API routes enabled")
+    except ImportError as e:
+        logger.warning(f"⚠️ Authentication API routes not available: {e}")
+    
+    # Add authentication and security middleware
+    try:
+        from app.middleware.auth import (
+            RateLimitMiddleware, 
+            AuthenticationMiddleware, 
+            SecurityHeadersMiddleware,
+            RequestLoggingMiddleware
+        )
+        
+        # Add middleware in reverse order (last added = first executed)
+        app.add_middleware(RequestLoggingMiddleware)
+        app.add_middleware(SecurityHeadersMiddleware)
+        app.add_middleware(RateLimitMiddleware, calls_per_minute=60)
+        # Note: AuthenticationMiddleware commented out for development
+        # app.add_middleware(AuthenticationMiddleware)
+        
+        logger.info("✅ Security middleware enabled")
+    except ImportError as e:
+        logger.warning(f"⚠️ Security middleware not available: {e}")
     
     # Include monitoring router for database performance monitoring
     try:

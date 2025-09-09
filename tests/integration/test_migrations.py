@@ -89,7 +89,9 @@ datefmt = %H:%M:%S
         manager = MigrationManager(temp_alembic_config)
         
         assert manager.alembic_cfg_path == temp_alembic_config
-        assert isinstance(manager.alembic_cfg, Config)
+        if ALEMBIC_AVAILABLE:
+            from alembic.config import Config  # Import here to avoid unbound variable
+            assert isinstance(manager.alembic_cfg, Config)
         assert manager.backup_dir.exists()
 
     @pytest.mark.asyncio

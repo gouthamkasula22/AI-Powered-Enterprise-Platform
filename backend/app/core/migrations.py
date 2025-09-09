@@ -112,7 +112,8 @@ class MigrationManager:
             
             # Get all revisions from current to head
             revisions = []
-            for revision in script_dir.walk_revisions(current_rev, "heads"):
+            base_rev = current_rev if current_rev is not None else "base"
+            for revision in script_dir.walk_revisions(base_rev, "heads"):
                 if revision.revision != current_rev:
                     revisions.append(revision.revision)
             
@@ -321,7 +322,10 @@ class MigrationManager:
                 )
             
             # Extract revision ID from the returned object
-            revision_id = revision.revision if hasattr(revision, 'revision') else str(revision)
+            if revision is None:
+                raise ValueError("Failed to generate migration revision")
+            
+            revision_id = getattr(revision, 'revision', str(revision))
             
             logger.info(f"Migration generated successfully: {revision_id}")
             return revision_id
@@ -353,7 +357,7 @@ class MigrationManager:
                     "revision": revision.revision,
                     "down_revision": revision.down_revision,
                     "branch_labels": revision.branch_labels,
-                    "depends_on": revision.depends_on,
+                    "depends_on": getattr(revision, 'depends_on', None),
                     "doc": revision.doc,
                     "is_current": revision.revision == current_rev
                 })

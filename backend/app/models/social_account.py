@@ -236,7 +236,7 @@ class SocialAccount(BaseModel):
         self.provider_data = json.dumps(provider_data)
         self.last_updated = datetime.utcnow()
     
-    def update_tokens(self, access_token: str, refresh_token: str = None, expires_in: int = None) -> None:
+    def update_tokens(self, access_token: str, refresh_token: str | None = None, expires_in: int | None = None) -> None:
         """Update OAuth tokens."""
         self.access_token = access_token
         if refresh_token:

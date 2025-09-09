@@ -7,14 +7,32 @@ User Authentication System test suite.
 
 import asyncio
 import os
+import sys
 import pytest
+
+# Add the backend directory to Python path so we can import app modules
+# Get the absolute path to the backend directory
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+backend_path = os.path.join(project_root, 'backend')
+
+if backend_path not in sys.path:
+    sys.path.insert(0, backend_path)
+
+# Verify the path exists
+if not os.path.exists(backend_path):
+    raise ImportError(f"Backend directory not found at: {backend_path}")
+
+# Change to backend directory for imports to work properly
+original_cwd = os.getcwd()
+os.chdir(backend_path)
 from typing import AsyncGenerator, Generator
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import NullPool
 
 from app.core.config import Settings
 from app.core.database import Base, get_db
-from app.main import create_app
+from main import create_app
 
 
 @pytest.fixture(scope="session")

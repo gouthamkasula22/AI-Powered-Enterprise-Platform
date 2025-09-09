@@ -13,6 +13,8 @@ from sqlalchemy import text, event, func
 from sqlalchemy.engine import Engine
 from sqlalchemy.pool import StaticPool
 from app.core.config import settings
+from typing import AsyncGenerator, Optional, Dict, Any, List, TYPE_CHECKING
+from sqlalchemy.engine import CursorResult
 
 logger = logging.getLogger(__name__)
 
@@ -164,10 +166,16 @@ query_stats = QueryStats()
 class TrackedAsyncSession(AsyncSession):
     """Custom session that tracks query execution with detailed logging"""
     
-    async def execute(self, statement, parameters=None, execution_options=None, bind_arguments=None, _parent_execute_state=None, _add_event=None):
+    async def execute(self, statement, *args, **kwargs) -> CursorResult[Any]:  # type: ignore[override]
         """Execute with comprehensive timing and logging"""
         # Format the query for logging
-        query_str = query_logger.format_query(statement, parameters)
+        params = None
+        if args:
+            params = args[0] if len(args) > 0 else None
+        elif 'params' in kwargs:
+            params = kwargs['params']
+            
+        query_str = query_logger.format_query(statement, params)
         query_hash = query_logger.get_query_hash(query_str)
         query_type = query_logger.get_query_type(query_str)
         
@@ -175,20 +183,13 @@ class TrackedAsyncSession(AsyncSession):
         start_time = time.time()
         
         try:
-            # Execute the query using parent's execute method
-            result = await super().execute(
-                statement, 
-                parameters, 
-                execution_options, 
-                bind_arguments, 
-                _parent_execute_state, 
-                _add_event
-            )
+            # Execute the query using parent's execute method with all parameters
+            result = await super().execute(statement, *args, **kwargs)
             
             # Calculate execution time
             execution_time = time.time() - start_time
             
-            # Record statistics
+            # Log the query execution
             query_stats.record_query(query_hash, query_str, execution_time, query_type)
             
             # Log based on execution time and settings
@@ -221,7 +222,7 @@ class TrackedAsyncSession(AsyncSession):
                     f"[Time: {execution_time:.3f}s]: {query_str[:100]}..."
                 )
             
-            return result
+            return result  # type: ignore[return-value]
             
         except Exception as e:
             execution_time = time.time() - start_time
@@ -235,7 +236,7 @@ class TrackedAsyncSession(AsyncSession):
             # Log failed query for analysis
             await self._log_failed_query(query_hash, query_str, execution_time, str(e))
             raise
-    
+
     async def _log_slow_query(self, query_hash: str, query: str, execution_time: float, severity: str):
         """Log slow query to file for analysis"""
         try:
@@ -426,11 +427,11 @@ async def get_database_stats() -> dict:
     try:
         pool = engine.pool
         return {
-            "pool_size": pool.size(),
-            "checked_in": pool.checkedin(),
-            "checked_out": pool.checkedout(),
-            "overflow": pool.overflow(),
-            "invalid": pool.invalid(),
+            "pool_size": getattr(pool, '_pool_size', None) or getattr(pool, 'size', 0),
+            "checked_in": getattr(pool, '_checked_in', 0),
+            "checked_out": getattr(pool, '_checked_out', 0), 
+            "overflow": getattr(pool, '_overflow', 0),
+            "invalid": getattr(pool, '_invalid', 0),
         }
     except Exception as e:
         logger.error(f"Failed to get database stats: {e}")
@@ -625,6 +626,7 @@ async def paginate_query(
     # Get total count (more efficient count query)
     count_query = query.statement.with_only_columns(func.count()).order_by(None)
     total = await session.scalar(count_query)
+    total = total or 0  # Handle None case
     
     # Calculate pagination metadata
     pages = (total + per_page - 1) // per_page if total > 0 else 0

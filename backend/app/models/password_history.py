@@ -279,9 +279,10 @@ class PasswordHistory(BaseModel):
         # Calculate entropy (simplified)
         unique_chars = len(set(password))
         if unique_chars > 0:
-            self.entropy = len(password) * (unique_chars / len(password)).bit_length()
+            ratio = unique_chars / len(password)
+            self.entropy = len(password) * int(ratio * 8)  # Simplified entropy calculation
     
-    def mark_compromised(self, source: str = None) -> None:
+    def mark_compromised(self, source: str | None = None) -> None:
         """Mark this password as compromised."""
         self.is_compromised = True
         if source:
@@ -302,9 +303,9 @@ class PasswordHistory(BaseModel):
         cls,
         user_id: uuid.UUID,
         password_hash: str,
-        password_plain: str = None,
-        change_reason: str = None,
-        ip_address: str = None
+        password_plain: str | None = None,
+        change_reason: str | None = None,
+        ip_address: str | None = None
     ) -> 'PasswordHistory':
         """
         Create a new password history entry.

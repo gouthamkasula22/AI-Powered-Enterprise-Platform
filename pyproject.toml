@@ -1,0 +1,49 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_paths = ["backend"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--strict-config",
+    "--disable-warnings",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+
+[tool.pylsp-mypy]
+enabled = true
+live_mode = true
+
+[tool.pyright]
+include = ["backend", "tests"]
+exclude = ["**/__pycache__"]
+pythonPath = "backend"
+extraPaths = ["backend"]
+
+[tool.black]
+line-length = 88
+target-version = ['py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
