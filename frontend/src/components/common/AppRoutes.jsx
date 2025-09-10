@@ -1,10 +1,9 @@
-// App routing component - will be implemented in Milestone 1
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, Navigate } from 'react-router-dom'
 import HomePage from '../../pages/HomePage'
 import LoginPage from '../../pages/LoginPage'
 import RegisterPage from '../../pages/RegisterPage'
 import DashboardPage from '../../pages/DashboardPage'
-import ProtectedRoute from './ProtectedRoute'
+import ProtectedRoute from '../auth/ProtectedRoute'
 
 const AppRoutes = () => {
   return (
@@ -20,6 +19,8 @@ const AppRoutes = () => {
           </ProtectedRoute>
         } 
       />
+      {/* Redirect any unknown routes to home */}
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
 }

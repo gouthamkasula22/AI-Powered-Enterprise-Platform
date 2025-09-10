@@ -43,6 +43,16 @@ class RefreshTokenRequest(BaseModel):
     refresh_token: str = Field(..., description="JWT refresh token")
 
 
+class EmailVerificationRequest(BaseModel):
+    """Email verification request schema"""
+    token: str = Field(..., description="Email verification token")
+
+
+class ResendVerificationRequest(BaseModel):
+    """Resend verification email request schema"""
+    email: EmailStr = Field(..., description="User email address")
+
+
 class TokenResponse(BaseModel):
     """Token response schema"""
     access_token: str = Field(..., description="JWT access token")

@@ -5,12 +5,15 @@ Core authentication business logic including user registration, login,
 logout, and session management.
 """
 
+import logging
 import uuid
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from fastapi import HTTPException, status
+
+logger = logging.getLogger(__name__)
 
 from app.core.security import (
     get_password_hash, 
@@ -23,6 +26,7 @@ from app.core.security import (
 )
 from app.models import User, UserSession, LoginHistory, PasswordHistory
 from app.core.database import get_db_session
+from app.services.email_service import send_welcome_email, send_security_alert_email
 
 
 class AuthenticationService:
@@ -63,6 +67,8 @@ class AuthenticationService:
         
         session = await get_db_session()
         try:
+            logger.info(f"Starting registration for email: {email}")
+            
             # Check if user already exists
             result = await session.execute(select(User).where(User.email == email))
             existing_user = result.scalar_one_or_none()
@@ -73,13 +79,26 @@ class AuthenticationService:
                     detail="User with this email already exists"
                 )
             
+            logger.info(f"Email {email} is available, proceeding with registration")
+            
             # Hash password
             hashed_password = get_password_hash(password)
+            logger.info(f"Password hashed successfully")
+            
+            # Generate email verification token
+            email_verification_token = generate_random_token(32)
+            verification_expires = datetime.utcnow() + timedelta(hours=24)
             
             # Create user
-            user = User(email=email)
+            user = User(
+                email=email,
+                password_hash=hashed_password,
+                email_verification_token=email_verification_token,
+                email_verification_expires=verification_expires
+            )
             session.add(user)
             await session.flush()  # Get the user ID
+            logger.info(f"User created with ID: {user.id}")
             
             # Create password history entry
             password_history = PasswordHistory(
@@ -97,50 +116,55 @@ class AuthenticationService:
                 ip_address=ip_address
             )
             session.add(password_history)
+            logger.info("Password history entry created")
             
-            # Create tokens
-            access_token = create_access_token(subject=str(user.id))
-            refresh_token = create_refresh_token(subject=str(user.id))
-            
-            # Generate device fingerprint
+            # Create initial session
             device_fingerprint = generate_device_fingerprint(user_agent, ip_address)
-            
-            # Create user session
+            current_time = datetime.utcnow()
             user_session = UserSession(
                 user_id=user.id,
                 session_token=generate_random_token(32),
-                refresh_token=refresh_token,
-                ip_address=ip_address,
-                user_agent=user_agent,
                 device_fingerprint=device_fingerprint,
-                expires_at=datetime.utcnow() + timedelta(days=7),
-                last_accessed=datetime.utcnow(),
+                user_agent=user_agent,
+                ip_address=ip_address,
                 is_active=True,
-                login_method="email_password"
+                expires_at=current_time + timedelta(days=30),
+                last_accessed=current_time,
+                login_method="password"
             )
             session.add(user_session)
+            await session.flush()  # Get the session ID
+            logger.info(f"User session created with ID: {user_session.id}")
             
             # Log registration in login history
-            login_history = LoginHistory(
+            await AuthenticationService._log_login_attempt(
+                session=session,
                 user_id=user.id,
                 session_id=user_session.id,
-                email_attempted=email,
+                email=email,
                 ip_address=ip_address,
                 user_agent=user_agent,
                 login_type="password",
                 result="success",
-                duration_ms=0  # Registration is instant
+                failure_reason=None,
+                start_time=current_time
             )
-            session.add(login_history)
+            logger.info("Login history entry created")
             
+            # Commit the transaction
             await session.commit()
+            logger.info(f"User registration completed successfully for {email}")
+            
+            # Create JWT tokens for the new user
+            access_token = create_access_token(subject=str(user.id))
+            refresh_token = create_refresh_token(subject=str(user.id))
             
             return {
                 "message": "User registered successfully",
                 "user": {
                     "id": str(user.id),
                     "email": user.email,
-                    "created_at": user.created_at.isoformat()
+                    "created_at": user.created_at
                 },
                 "tokens": {
                     "access_token": access_token,
@@ -154,9 +178,162 @@ class AuthenticationService:
             raise
         except Exception as e:
             await session.rollback()
+            logger.error(f"Registration failed for {email}: {str(e)}")
+            logger.exception("Full exception details:")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Registration failed due to server error"
+            ) from e
+        finally:
+            await session.close()
+    
+    @staticmethod
+    async def verify_email(verification_token: str) -> Dict[str, Any]:
+        """
+        Verify user's email address using verification token
+        
+        Args:
+            verification_token: Email verification token
+            
+        Returns:
+            Dictionary with verification result
+            
+        Raises:
+            HTTPException: If verification fails
+        """
+        session = await get_db_session()
+        try:
+            # Find user with verification token
+            result = await session.execute(
+                select(User).where(
+                    User.email_verification_token == verification_token
+                )
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid verification token"
+                )
+            
+            # Check if token has expired
+            if user.email_verification_expires and user.email_verification_expires < datetime.utcnow():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Verification token has expired"
+                )
+            
+            # Check if already verified
+            if user.is_verified:
+                return {
+                    "message": "Email already verified",
+                    "user": {
+                        "id": str(user.id),
+                        "email": user.email,
+                        "is_verified": True
+                    }
+                }
+            
+            # Verify the email
+            user.is_verified = True
+            user.email_verification_token = None
+            user.email_verification_expires = None
+            
+            await session.commit()
+            
+            return {
+                "message": "Email verified successfully",
+                "user": {
+                    "id": str(user.id),
+                    "email": user.email,
+                    "is_verified": True
+                }
+            }
+            
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Email verification failed due to server error"
+            ) from e
+        finally:
+            await session.close()
+    
+    @staticmethod
+    async def resend_verification_email(email: str) -> Dict[str, Any]:
+        """
+        Resend email verification link
+        
+        Args:
+            email: User email address
+            
+        Returns:
+            Dictionary with resend result
+            
+        Raises:
+            HTTPException: If resend fails
+        """
+        session = await get_db_session()
+        try:
+            # Find user by email
+            result = await session.execute(
+                select(User).where(User.email == email)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found"
+                )
+            
+            # Check if already verified
+            if user.is_verified:
+                return {
+                    "message": "Email is already verified"
+                }
+            
+            # Generate new verification token
+            new_token = generate_random_token(32)
+            verification_expires = datetime.utcnow() + timedelta(hours=24)
+            
+            # Update user with new token
+            user.email_verification_token = new_token
+            user.email_verification_expires = verification_expires
+            
+            await session.commit()
+            
+            # Send verification email
+            try:
+                await send_welcome_email(
+                    user_email=user.email,
+                    user_name=user.email.split('@')[0],
+                    verification_token=new_token
+                )
+                logger.info(f"Verification email resent to {user.email}")
+            except Exception as e:
+                logger.error(f"Failed to resend verification email to {user.email}: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to send verification email"
+                ) from e
+            
+            return {
+                "message": "Verification email has been resent. Please check your inbox."
+            }
+            
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to resend verification email"
             ) from e
         finally:
             await session.close()

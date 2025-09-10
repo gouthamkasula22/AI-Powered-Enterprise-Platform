@@ -15,6 +15,8 @@ from app.schemas.auth import (
     ForgotPasswordRequest,
     ResetPasswordRequest,
     RefreshTokenRequest,
+    EmailVerificationRequest,
+    ResendVerificationRequest,
     AuthResponse,
     TokenResponse,
     UserInfoResponse,
@@ -291,3 +293,51 @@ async def validate_password(
     """
     validation = validate_password_strength(password)
     return PasswordValidationResponse(**validation)
+
+
+@router.post("/verify-email", response_model=SuccessResponse)
+async def verify_email(
+    verification_data: EmailVerificationRequest
+) -> SuccessResponse:
+    """
+    Verify user's email address
+    
+    Args:
+        verification_data: Email verification token
+        
+    Returns:
+        Success response
+        
+    Raises:
+        HTTPException: If verification fails
+    """
+    result = await AuthenticationService.verify_email(verification_data.token)
+    
+    return SuccessResponse(
+        message=result["message"],
+        data=result.get("user")
+    )
+
+
+@router.post("/resend-verification", response_model=SuccessResponse)
+async def resend_verification_email(
+    resend_data: ResendVerificationRequest
+) -> SuccessResponse:
+    """
+    Resend email verification link
+    
+    Args:
+        resend_data: Email address to resend verification to
+        
+    Returns:
+        Success response
+        
+    Raises:
+        HTTPException: If resend fails
+    """
+    result = await AuthenticationService.resend_verification_email(resend_data.email)
+    
+    return SuccessResponse(
+        message=result["message"],
+        data=None
+    )

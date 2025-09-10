@@ -10,7 +10,8 @@ alembic==1.12.1
 
 # Authentication & Security
 python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
+passlib[argon2]==1.7.4
+argon2-cffi==25.1.0
 python-multipart==0.0.6
 
 # Validation & Settings
@@ -28,6 +29,9 @@ httpx==0.25.2
 redis==5.0.1
 
 # Email (for OTP verification)
+aiosmtplib==3.0.1
+jinja2==3.1.2
+emails==0.6.0
 fastapi-mail==1.4.1
 
 # Testing

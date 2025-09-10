@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"  # development, production, test
     LOG_LEVEL: str = "INFO"
+    FRONTEND_URL: str = "http://localhost:3000"
     
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://auth_user:auth_password@localhost:5433/auth_db"
@@ -26,9 +27,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
-    # Password
+    # Password hashing configuration (using Argon2)
     PASSWORD_MIN_LENGTH: int = 8
-    BCRYPT_ROUNDS: int = 12
+    ARGON2_ROUNDS: int = 4
+    ARGON2_MEMORY_COST: int = 102400  # 100MB in KB
+    ARGON2_PARALLELISM: int = 8
     
     # CORS
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
@@ -38,7 +41,13 @@ class Settings(BaseSettings):
     SMTP_PORT: int = 587
     SMTP_USERNAME: Optional[str] = None
     SMTP_PASSWORD: Optional[str] = None
+    SMTP_USE_TLS: bool = True
+    SMTP_USE_SSL: bool = False
     FROM_EMAIL: str = "noreply@localhost"
+    FROM_NAME: str = "User Authentication System"
+    EMAIL_TEMPLATES_DIR: str = "app/templates/email"
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24
+    EMAIL_RESET_TOKEN_EXPIRE_HOURS: int = 2
     
     # OAuth Providers
     GOOGLE_CLIENT_ID: Optional[str] = None

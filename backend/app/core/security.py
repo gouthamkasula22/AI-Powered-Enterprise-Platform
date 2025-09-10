@@ -10,8 +10,14 @@ from passlib.context import CryptContext
 from fastapi import HTTPException, status
 from app.core.config import settings
 
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Password hashing context using Argon2 (modern and secure)
+pwd_context = CryptContext(
+    schemes=["argon2"], 
+    deprecated="auto",
+    argon2__rounds=4,
+    argon2__memory_cost=102400,  # 100MB in KB
+    argon2__parallelism=8
+)
 
 
 class SecurityConfig:

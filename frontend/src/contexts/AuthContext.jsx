@@ -1,7 +1,38 @@
-// Authentication context will be implemented in Milestone 2
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useState, useEffect } from 'react'
+import axios from 'axios'
+import toast from 'react-hot-toast'
 
 const AuthContext = createContext()
+
+// Configure axios defaults
+axios.defaults.baseURL = 'http://localhost:8000'
+axios.defaults.headers.common['Content-Type'] = 'application/json'
+
+// Request interceptor to add auth token
+axios.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('access_token')
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  },
+  (error) => Promise.reject(error)
+)
+
+// Response interceptor for token refresh and error handling
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      localStorage.removeItem('user')
+      window.location.href = '/login'
+    }
+    return Promise.reject(error)
+  }
+)
 
 export const useAuth = () => {
   const context = useContext(AuthContext)
@@ -13,27 +44,141 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
 
-  // Placeholder functions - will be implemented in Milestone 2
+  // Check if user is logged in on app start
+  useEffect(() => {
+    const initializeAuth = () => {
+      const token = localStorage.getItem('access_token')
+      const userData = localStorage.getItem('user')
+      
+      if (token && userData) {
+        try {
+          const parsedUser = JSON.parse(userData)
+          setUser(parsedUser)
+          setIsAuthenticated(true)
+        } catch (error) {
+          console.error('Error parsing user data:', error)
+          logout()
+        }
+      }
+      setIsLoading(false)
+    }
+
+    initializeAuth()
+  }, [])
+
   const login = async (email, password) => {
-    console.log('Login function to be implemented')
+    try {
+      setIsLoading(true)
+      
+      const response = await axios.post('/api/v1/auth/login', {
+        email,
+        password
+      })
+
+      const { user: userData, tokens } = response.data
+      
+      // Store tokens and user data
+      localStorage.setItem('access_token', tokens.access_token)
+      localStorage.setItem('refresh_token', tokens.refresh_token)
+      localStorage.setItem('user', JSON.stringify(userData))
+      
+      setUser(userData)
+      setIsAuthenticated(true)
+      
+      toast.success('Login successful')
+      return { success: true }
+      
+    } catch (error) {
+      const message = error.response?.data?.detail || 'Login failed'
+      toast.error(message)
+      return { success: false, error: message }
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const register = async (userData) => {
-    console.log('Register function to be implemented')
+    try {
+      setIsLoading(true)
+      
+      const response = await axios.post('/api/v1/auth/register', {
+        email: userData.email,
+        password: userData.password
+      })
+
+      toast.success('Registration successful! Please check your email for verification.')
+      return { success: true, data: response.data }
+      
+    } catch (error) {
+      const message = error.response?.data?.detail || 'Registration failed'
+      toast.error(message)
+      return { success: false, error: message }
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const logout = () => {
-    console.log('Logout function to be implemented')
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('user')
+    setUser(null)
+    setIsAuthenticated(false)
+    toast.success('Logged out successfully')
+  }
+
+  const verifyEmail = async (token) => {
+    try {
+      setIsLoading(true)
+      
+      const response = await axios.post('/api/v1/auth/verify-email', {
+        token
+      })
+      
+      toast.success('Email verified successfully')
+      return { success: true, data: response.data }
+      
+    } catch (error) {
+      const message = error.response?.data?.detail || 'Email verification failed'
+      toast.error(message)
+      return { success: false, error: message }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const resendVerification = async (email) => {
+    try {
+      setIsLoading(true)
+      
+      const response = await axios.post('/api/v1/auth/resend-verification', {
+        email
+      })
+      
+      toast.success('Verification email sent')
+      return { success: true, data: response.data }
+      
+    } catch (error) {
+      const message = error.response?.data?.detail || 'Failed to send verification email'
+      toast.error(message)
+      return { success: false, error: message }
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const value = {
     user,
     isLoading,
+    isAuthenticated,
     login,
     register,
     logout,
+    verifyEmail,
+    resendVerification
   }
 
   return (

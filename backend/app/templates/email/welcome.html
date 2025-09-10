@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Welcome to {{ app_name }}!</h2>
+
+<p>Hello {{ user_name }},</p>
+
+<p>Welcome to {{ app_name }}! We're excited to have you on board. Your account has been successfully created and you're almost ready to get started.</p>
+
+<p>To complete your registration and verify your email address, please click the button below:</p>
+
+<div style="text-align: center;">
+    <a href="{{ verification_link }}" class="button">Verify Email Address</a>
+</div>
+
+<p>This verification link will expire in {{ expires_hours|default(24) }} hours for security reasons.</p>
+
+<div class="security-notice">
+    <strong>Security Tip:</strong> If you didn't create an account with {{ app_name }}, please ignore this email. Your email address will not be used without verification.
+</div>
+
+<p>Once verified, you'll be able to:</p>
+<ul>
+    <li>✅ Access your secure dashboard</li>
+    <li>✅ Manage your account settings</li>
+    <li>✅ Use all platform features</li>
+    <li>✅ Receive important security notifications</li>
+</ul>
+
+<p>If you have any questions or need assistance, feel free to reply to this email or contact our support team.</p>
+
+<p>Best regards,<br>
+The {{ app_name }} Team</p>
+
+<hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+
+<p style="font-size: 12px; color: #999;">
+If the button above doesn't work, copy and paste this link into your browser:<br>
+<a href="{{ verification_link }}" style="color: #667eea;">{{ verification_link }}</a>
+</p>
+{% endblock %}
