@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 
@@ -130,13 +130,20 @@ export const AuthProvider = ({ children }) => {
     toast.success('Logged out successfully')
   }
 
-  const verifyEmail = async (token) => {
+  const verifyEmail = useCallback(async (token) => {
     try {
       setIsLoading(true)
       
       const response = await axios.post('/api/v1/auth/verify-email', {
         token
       })
+      
+      // Update user data to reflect email verification
+      if (user) {
+        const updatedUser = { ...user, is_verified: true }
+        setUser(updatedUser)
+        localStorage.setItem('user', JSON.stringify(updatedUser))
+      }
       
       toast.success('Email verified successfully')
       return { success: true, data: response.data }
@@ -148,7 +155,22 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [user])
+
+  const refreshUserData = useCallback(async () => {
+    try {
+      const response = await axios.get('/api/v1/auth/me')
+      const userData = response.data
+      
+      setUser(userData)
+      localStorage.setItem('user', JSON.stringify(userData))
+      
+      return { success: true, data: userData }
+    } catch (error) {
+      console.error('Failed to refresh user data:', error)
+      return { success: false, error: error.response?.data?.detail || 'Failed to refresh user data' }
+    }
+  }, [])
 
   const resendVerification = async (email) => {
     try {
@@ -162,6 +184,7 @@ export const AuthProvider = ({ children }) => {
       return { success: true, data: response.data }
       
     } catch (error) {
+      console.error('Resend verification error:', error.response?.data)
       const message = error.response?.data?.detail || 'Failed to send verification email'
       toast.error(message)
       return { success: false, error: message }
@@ -178,7 +201,8 @@ export const AuthProvider = ({ children }) => {
     register,
     logout,
     verifyEmail,
-    resendVerification
+    resendVerification,
+    refreshUserData
   }
 
   return (

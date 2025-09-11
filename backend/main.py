@@ -44,41 +44,41 @@ async def lifespan(app: FastAPI):
     including database connection testing and cleanup.
     """
     # Startup
-    logger.info("🚀 Starting User Authentication System...")
+    logger.info("Starting User Authentication System...")
     logger.info(f"Environment: {settings.ENVIRONMENT}")
     logger.info(f"Debug mode: {settings.DEBUG}")
     
     # Test database connection
     try:
         await test_database_connection()
-        logger.info("✅ Database connection successful")
+        logger.info("Database connection successful")
         
         # Create database tables if they don't exist
         await create_database_tables()
-        logger.info("✅ Database tables verified/created")
+        logger.info("Database tables verified/created")
         
     except Exception as e:
-        logger.error(f"❌ Database connection failed: {e}")
+        logger.error(f"Database connection failed: {e}")
         if settings.ENVIRONMENT == "production":
             raise e
         else:
-            logger.warning("⚠️ Continuing without database in development mode")
+            logger.warning("Continuing without database in development mode")
     
-    logger.info("✅ Application startup complete")
+    logger.info("Application startup complete")
     
     yield
     
     # Shutdown
-    logger.info("🔄 Shutting down User Authentication System...")
+    logger.info("Shutting down User Authentication System...")
     
     # Gracefully close database connections
     try:
         await close_database_connections()
-        logger.info("✅ Database connections closed successfully")
+        logger.info("Database connections closed successfully")
     except Exception as e:
-        logger.error(f"❌ Error closing database connections: {e}")
+        logger.error(f"Error closing database connections: {e}")
     
-    logger.info("✅ Application shutdown complete")
+    logger.info("Application shutdown complete")
 
 
 def create_app() -> FastAPI:
@@ -155,9 +155,9 @@ def create_app() -> FastAPI:
     try:
         from app.api.v1 import api_router
         app.include_router(api_router)
-        logger.info("✅ Authentication API routes enabled")
+        logger.info("Authentication API routes enabled")
     except ImportError as e:
-        logger.warning(f"⚠️ Authentication API routes not available: {e}")
+        logger.warning(f"Authentication API routes not available: {e}")
     
     # Add authentication and security middleware
     try:
@@ -171,21 +171,22 @@ def create_app() -> FastAPI:
         # Add middleware in reverse order (last added = first executed)
         app.add_middleware(RequestLoggingMiddleware)
         app.add_middleware(SecurityHeadersMiddleware)
-        app.add_middleware(RateLimitMiddleware, calls_per_minute=60)
+        # Re-enable rate limiting with reasonable development limits
+        app.add_middleware(RateLimitMiddleware, calls_per_minute=120)
         # Note: AuthenticationMiddleware commented out for development
         # app.add_middleware(AuthenticationMiddleware)
         
-        logger.info("✅ Security middleware enabled")
+        logger.info("Security middleware enabled")
     except ImportError as e:
-        logger.warning(f"⚠️ Security middleware not available: {e}")
+        logger.warning(f"Security middleware not available: {e}")
     
     # Include monitoring router for database performance monitoring
     try:
         from app.api.v1.monitoring import router as monitoring_router
         app.include_router(monitoring_router, tags=["Database Monitoring"])
-        logger.info("✅ Database monitoring endpoints enabled")
+        logger.info("Database monitoring endpoints enabled")
     except ImportError as e:
-        logger.warning(f"⚠️ Database monitoring endpoints not available: {e}")
+        logger.warning(f"Database monitoring endpoints not available: {e}")
     
     return app
 

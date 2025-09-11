@@ -48,6 +48,33 @@ class EmailVerificationRequest(BaseModel):
     token: str = Field(..., description="Email verification token")
 
 
+class EmailValidationRequest(BaseModel):
+    """Email validation request schema"""
+    email: EmailStr = Field(..., description="Email address to validate")
+
+
+class EmailValidationResponse(BaseModel):
+    """Email validation response schema"""
+    is_valid: bool = Field(..., description="Whether the email is valid")
+    reason: Optional[str] = Field(None, description="Reason if email is invalid")
+    suggestion: Optional[str] = Field(None, description="Suggested correction for typos")
+    domain: Optional[str] = Field(None, description="Email domain")
+    normalized_email: Optional[str] = Field(None, description="Normalized email address")
+
+
+class PasswordRequirementCheck(BaseModel):
+    """Individual password requirement check result"""
+    name: str = Field(..., description="Requirement name")
+    description: str = Field(..., description="Human-readable requirement description")
+    is_met: bool = Field(..., description="Whether this requirement is satisfied")
+
+
+class PasswordValidationRequest(BaseModel):
+    """Password validation request schema"""
+    password: str = Field(..., description="Password to validate")
+    email: Optional[str] = Field(None, description="User email for personalized validation")
+
+
 class ResendVerificationRequest(BaseModel):
     """Resend verification email request schema"""
     email: EmailStr = Field(..., description="User email address")
@@ -64,6 +91,8 @@ class UserResponse(BaseModel):
     """User information response schema"""
     id: str = Field(..., description="User ID")
     email: EmailStr = Field(..., description="User email address")
+    is_verified: bool = Field(..., description="Whether the email is verified")
+    is_active: bool = Field(..., description="Whether the account is active")
     created_at: datetime = Field(..., description="Account creation timestamp")
     
     model_config = ConfigDict(from_attributes=True)
@@ -78,10 +107,12 @@ class AuthResponse(BaseModel):
 
 class PasswordValidationResponse(BaseModel):
     """Password validation response schema"""
-    valid: bool = Field(..., description="Whether password is valid")
-    errors: List[str] = Field(default_factory=list, description="Validation error messages")
+    is_valid: bool = Field(..., description="Whether the password meets all requirements")
     strength_score: int = Field(..., description="Password strength score (0-100)")
-    requirements: Dict[str, bool] = Field(..., description="Password requirement compliance")
+    strength_level: str = Field(..., description="Strength level (Weak, Fair, Good, Strong, Very Strong)")
+    requirements: List[PasswordRequirementCheck] = Field(..., description="Individual requirement checks")
+    suggestions: List[str] = Field(..., description="Suggestions for improvement")
+    estimated_crack_time: str = Field(..., description="Estimated time to crack this password")
 
 
 class LogoutResponse(BaseModel):
@@ -104,3 +135,32 @@ class SuccessResponse(BaseModel):
     """Generic success response schema"""
     message: str = Field(..., description="Success message")
     data: Optional[Dict[str, Any]] = Field(None, description="Additional response data")
+
+
+class EmailVerificationResponse(BaseModel):
+    """Email verification response schema"""
+    message: str = Field(..., description="Verification result message")
+    user: UserResponse = Field(..., description="User information")
+
+
+class MessageResponse(BaseModel):
+    """Simple message response schema"""
+    message: str = Field(..., description="Response message")
+
+
+class ResetPasswordResponse(BaseModel):
+    """Password reset response schema"""
+    message: str = Field(..., description="Reset confirmation message")
+    user: UserResponse = Field(..., description="User information")
+
+
+class ValidateResetTokenRequest(BaseModel):
+    """Validate reset token request schema"""
+    token: str = Field(..., description="Password reset token to validate")
+
+
+class ValidateResetTokenResponse(BaseModel):
+    """Validate reset token response schema"""
+    is_valid: bool = Field(..., description="Whether the token is valid")
+    message: str = Field(..., description="Status message")
+    email: Optional[str] = Field(None, description="Email associated with valid token")

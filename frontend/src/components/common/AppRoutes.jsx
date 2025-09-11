@@ -3,6 +3,9 @@ import HomePage from '../../pages/HomePage'
 import LoginPage from '../../pages/LoginPage'
 import RegisterPage from '../../pages/RegisterPage'
 import DashboardPage from '../../pages/DashboardPage'
+import VerifyEmailPage from '../../pages/VerifyEmailPage'
+import ForgotPasswordPage from '../../pages/ForgotPasswordPage'
+import ResetPasswordPage from '../../pages/ResetPasswordPage'
 import ProtectedRoute from '../auth/ProtectedRoute'
 
 const AppRoutes = () => {
@@ -11,6 +14,9 @@ const AppRoutes = () => {
       <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
       <Route 
         path="/dashboard" 
         element={

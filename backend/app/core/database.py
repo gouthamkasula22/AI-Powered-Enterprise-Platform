@@ -213,12 +213,12 @@ class TrackedAsyncSession(AsyncSession):
                 
             elif execution_time > 0.5:  # Warning threshold
                 logger.info(
-                    f"⚠️ Query approaching slow threshold [Hash: {query_hash}] [Type: {query_type}] "
+                    f"Query approaching slow threshold [Hash: {query_hash}] [Type: {query_type}] "
                     f"[Time: {execution_time:.3f}s]: {query_str[:100]}..."
                 )
             elif settings.DB_ECHO:  # Debug mode
                 logger.debug(
-                    f"✅ Query executed [Hash: {query_hash}] [Type: {query_type}] "
+                    f"Query executed [Hash: {query_hash}] [Type: {query_type}] "
                     f"[Time: {execution_time:.3f}s]: {query_str[:100]}..."
                 )
             
@@ -227,7 +227,7 @@ class TrackedAsyncSession(AsyncSession):
         except Exception as e:
             execution_time = time.time() - start_time
             logger.error(
-                f"❌ Query failed [Hash: {query_hash}] [Type: {query_type}] "
+                f"Query failed [Hash: {query_hash}] [Type: {query_type}] "
                 f"[Time: {execution_time:.3f}s]\n"
                 f"Query: {query_str}\n"
                 f"Error: {str(e)}"
@@ -411,7 +411,7 @@ async def test_database_connection() -> bool:
             
             connection_time = time.time() - start_time
             
-            logger.info(f"✅ Database connection successful in {connection_time:.3f}s")
+            logger.info(f"Database connection successful in {connection_time:.3f}s")
             logger.info(f"Database version: {db_version}")
             logger.debug(f"Test query result: {test_value}")
             
@@ -419,7 +419,7 @@ async def test_database_connection() -> bool:
             
     except Exception as e:
         connection_time = time.time() - start_time
-        logger.error(f"❌ Database connection failed after {connection_time:.3f}s: {e}")
+        logger.error(f"Database connection failed after {connection_time:.3f}s: {e}")
         return False
 
 async def get_database_stats() -> dict:
@@ -481,9 +481,9 @@ async def create_database_tables():
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
-        logger.info("✅ Database tables created/verified successfully")
+        logger.info("Database tables created/verified successfully")
     except Exception as e:
-        logger.error(f"❌ Failed to create database tables: {e}")
+        logger.error(f"Failed to create database tables: {e}")
         raise
 
 async def close_database_connections():
@@ -496,7 +496,7 @@ async def close_database_connections():
         logger.info(f"Closing database connections. Final pool stats: {final_stats}")
         
         await engine.dispose()
-        logger.info("✅ Database connections closed successfully")
+        logger.info("Database connections closed successfully")
         
     except Exception as e:
         logger.error(f"Error closing database connections: {e}")

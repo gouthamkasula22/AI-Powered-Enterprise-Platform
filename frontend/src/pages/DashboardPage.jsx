@@ -1,9 +1,19 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import NotificationCenter from '../components/common/NotificationCenter'
+import EmailVerificationStatus from '../components/auth/EmailVerificationStatus'
 
 const DashboardPage = () => {
-  const { user, logout } = useAuth()
+  const { user, logout, refreshUserData } = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
+
+  // Refresh user data when dashboard loads to ensure we have latest verification status
+  useEffect(() => {
+    const refreshData = async () => {
+      await refreshUserData()
+    }
+    refreshData()
+  }, [refreshUserData]) // Include refreshUserData in dependencies
 
   const handleLogout = () => {
     logout()
@@ -29,6 +39,7 @@ const DashboardPage = () => {
             </div>
             
             <div className="flex items-center space-x-4">
+              <NotificationCenter />
               <span className="text-sm text-gray-700">
                 Welcome, {user?.email}
               </span>
@@ -44,6 +55,9 @@ const DashboardPage = () => {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Email Verification Status */}
+        {user && <EmailVerificationStatus user={user} />}
+        
         <div className="flex gap-8">
           {/* Sidebar */}
           <div className="w-64 flex-shrink-0">
@@ -78,7 +92,7 @@ const DashboardPage = () => {
                     <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                       <h3 className="text-lg font-semibold text-blue-900 mb-2">Account Status</h3>
                       <p className="text-blue-700">
-                        {user?.is_verified ? 'Verified' : 'Pending Verification'}
+                        {(user?.is_verified || user?.user?.is_verified) ? 'Verified' : 'Pending Verification'}
                       </p>
                     </div>
                     

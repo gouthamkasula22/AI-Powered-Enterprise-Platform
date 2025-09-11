@@ -7,10 +7,10 @@ logout, and session management.
 
 import logging
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_, or_
 from fastapi import HTTPException, status
 
 logger = logging.getLogger(__name__)
@@ -87,7 +87,7 @@ class AuthenticationService:
             
             # Generate email verification token
             email_verification_token = generate_random_token(32)
-            verification_expires = datetime.utcnow() + timedelta(hours=24)
+            verification_expires = datetime.now(timezone.utc) + timedelta(hours=24)
             
             # Create user
             user = User(
@@ -155,6 +155,18 @@ class AuthenticationService:
             await session.commit()
             logger.info(f"User registration completed successfully for {email}")
             
+            # Send welcome email with verification link
+            try:
+                await send_welcome_email(
+                    user_email=email,
+                    user_name=email.split('@')[0],  # Use email prefix as name for now
+                    verification_token=email_verification_token
+                )
+                logger.info(f"Welcome email sent successfully to {email}")
+            except Exception as email_error:
+                logger.error(f"Failed to send welcome email to {email}: {str(email_error)}")
+                # Don't fail registration if email fails - user is already created
+            
             # Create JWT tokens for the new user
             access_token = create_access_token(subject=str(user.id))
             refresh_token = create_refresh_token(subject=str(user.id))
@@ -164,6 +176,8 @@ class AuthenticationService:
                 "user": {
                     "id": str(user.id),
                     "email": user.email,
+                    "is_verified": user.is_verified,
+                    "is_active": user.is_active,
                     "created_at": user.created_at
                 },
                 "tokens": {
@@ -218,7 +232,7 @@ class AuthenticationService:
                 )
             
             # Check if token has expired
-            if user.email_verification_expires and user.email_verification_expires < datetime.utcnow():
+            if user.email_verification_expires and user.email_verification_expires < datetime.now(timezone.utc):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Verification token has expired"
@@ -299,7 +313,7 @@ class AuthenticationService:
             
             # Generate new verification token
             new_token = generate_random_token(32)
-            verification_expires = datetime.utcnow() + timedelta(hours=24)
+            verification_expires = datetime.now(timezone.utc) + timedelta(hours=24)
             
             # Update user with new token
             user.email_verification_token = new_token
@@ -389,7 +403,15 @@ class AuthenticationService:
             )
             password_record = password_result.scalar_one_or_none()
             
-            if not password_record or not verify_password(password, password_record.password_hash):
+            # Check password against password history first, then fallback to user.password_hash
+            password_hash_to_check = None
+            if password_record:
+                password_hash_to_check = password_record.password_hash
+            elif user.password_hash:
+                password_hash_to_check = user.password_hash
+                logger.warning(f"No password history found for user {user.id}, using direct password hash")
+            
+            if not password_hash_to_check or not verify_password(password, password_hash_to_check):
                 # Log failed attempt
                 await AuthenticationService._log_login_attempt(
                     session, user.id, None, email, ip_address, user_agent,
@@ -432,11 +454,38 @@ class AuthenticationService:
             
             await session.commit()
             
+            # Check for new device/location and send security alert
+            try:
+                is_new_device = await AuthenticationService._is_new_device_or_location(
+                    user.id, device_fingerprint, ip_address, session
+                )
+                
+                if is_new_device:
+                    await send_security_alert_email(
+                        user_email=user.email,
+                        user_name=user.email.split('@')[0],
+                        alert_type="new_login",
+                        details={
+                            "ip_address": ip_address,
+                            "user_agent": user_agent,
+                            "timestamp": datetime.utcnow().isoformat(),
+                            "device_fingerprint": device_fingerprint[:16] + "...",  # Partial for privacy
+                            "location": "Unknown",  # Could be enhanced with IP geolocation
+                            "action": "New device login detected"
+                        }
+                    )
+                    logger.info(f"Security alert sent for new device login: {user.email}")
+            except Exception as e:
+                logger.error(f"Failed to send security alert for {user.email}: {str(e)}")
+                # Don't fail login if security alert fails
+            
             return {
                 "message": "Login successful",
                 "user": {
                     "id": str(user.id),
                     "email": user.email,
+                    "is_verified": user.is_verified,
+                    "is_active": user.is_active,
                     "created_at": user.created_at.isoformat()
                 },
                 "tokens": {
@@ -454,6 +503,246 @@ class AuthenticationService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Authentication failed due to server error"
+            ) from e
+        finally:
+            await session.close()
+    
+    @staticmethod
+    async def request_password_reset(email: str, ip_address: str) -> Dict[str, Any]:
+        """
+        Generate password reset token and send reset email
+        
+        Args:
+            email: User email address
+            ip_address: Client IP address for logging
+            
+        Returns:
+            Dictionary with reset request confirmation
+            
+        Raises:
+            HTTPException: If user not found or email sending fails
+        """
+        session = await get_db_session()
+        try:
+            # Find user by email
+            result = await session.execute(
+                select(User).where(User.email == email)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                # Don't reveal if email exists - security best practice
+                return {
+                    "message": "If an account with that email exists, a password reset link has been sent."
+                }
+            
+            # Generate reset token (expires in 1 hour)
+            reset_token = generate_random_token(32)
+            reset_expires = datetime.now(timezone.utc) + timedelta(hours=1)
+            
+            # Update user with reset token
+            user.password_reset_token = reset_token
+            user.password_reset_expires = reset_expires
+            
+            await session.commit()
+            
+            # Send password reset email
+            try:
+                from app.services.email_service import send_password_reset_email
+                await send_password_reset_email(
+                    user_email=user.email,
+                    user_name=user.email.split('@')[0],
+                    reset_token=reset_token
+                )
+                logger.info(f"Password reset email sent to {user.email}")
+            except Exception as e:
+                logger.error(f"Failed to send password reset email to {user.email}: {str(e)}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to send password reset email"
+                ) from e
+            
+            return {
+                "message": "If an account with that email exists, a password reset link has been sent."
+            }
+            
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Password reset request failed for {email}: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Password reset request failed"
+            ) from e
+        finally:
+            await session.close()
+    
+    @staticmethod
+    async def reset_password(token: str, new_password: str, ip_address: str) -> Dict[str, Any]:
+        """
+        Reset password using reset token
+        
+        Args:
+            token: Password reset token
+            new_password: New password
+            ip_address: Client IP address for logging
+            
+        Returns:
+            Dictionary with reset confirmation and user info
+            
+        Raises:
+            HTTPException: If token is invalid or reset fails
+        """
+        logger.info(f"reset_password called with token: {token[:10] if token else 'None'}...")
+        session = await get_db_session()
+        try:
+            # Find user with reset token
+            result = await session.execute(
+                select(User).where(User.password_reset_token == token)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid or expired reset token"
+                )
+            
+            # Check if token has expired
+            if user.password_reset_expires and user.password_reset_expires < datetime.now(timezone.utc):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Reset token has expired"
+                )
+            
+            # Validate new password
+            logger.info("Validating password strength...")
+            password_validation = validate_password_strength(new_password)
+            logger.info(f"Password validation result: {password_validation}")
+            if not password_validation["valid"]:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Password does not meet security requirements"
+                )
+            
+            # Hash new password
+            hashed_password = get_password_hash(new_password)
+            
+            # Update user password and clear reset token
+            user.password_hash = hashed_password
+            user.password_reset_token = None
+            user.password_reset_expires = None
+            user.updated_at = datetime.utcnow()
+            
+            # Create password history entry
+            password_history = PasswordHistory(
+                user_id=user.id,
+                password_hash=hashed_password,
+                strength_score=password_validation["strength_score"] / 100.0,
+                length=len(new_password),
+                has_uppercase=password_validation["requirements"]["uppercase"],
+                has_lowercase=password_validation["requirements"]["lowercase"],
+                has_digits=password_validation["requirements"]["digit"],
+                has_symbols=password_validation["requirements"]["special"],
+                policy_compliant=True,
+                set_at=datetime.utcnow(),
+                change_reason="password_reset",
+                ip_address=ip_address
+            )
+            session.add(password_history)
+            
+            await session.commit()
+            
+            # Send security alert email
+            try:
+                await send_security_alert_email(
+                    user_email=user.email,
+                    user_name=user.email.split('@')[0],
+                    alert_type="password_reset",
+                    details={
+                        "ip_address": ip_address,
+                        "user_agent": "Password Reset",
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "action": "Password was reset"
+                    }
+                )
+                logger.info(f"Security alert sent for password reset: {user.email}")
+            except Exception as e:
+                logger.error(f"Failed to send security alert for password reset: {str(e)}")
+                # Don't fail the reset if security email fails
+            
+            return {
+                "message": "Password reset successfully",
+                "user": {
+                    "id": str(user.id),
+                    "email": user.email,
+                    "created_at": user.created_at
+                }
+            }
+            
+        except HTTPException:
+            await session.rollback()
+            raise
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Password reset failed for token {token[:10]}...: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Password reset failed"
+            ) from e
+        finally:
+            await session.close()
+    
+    @staticmethod
+    async def validate_reset_token(token: str) -> Dict[str, Any]:
+        """
+        Validate password reset token
+        
+        Args:
+            token: Password reset token to validate
+            
+        Returns:
+            Dictionary with validation result
+            
+        Raises:
+            HTTPException: If validation fails
+        """
+        session = await get_db_session()
+        try:
+            # Find user with reset token
+            result = await session.execute(
+                select(User).where(User.password_reset_token == token)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                return {
+                    "is_valid": False,
+                    "message": "Invalid reset token",
+                    "email": None
+                }
+            
+            # Check if token has expired
+            if user.password_reset_expires and user.password_reset_expires < datetime.now(timezone.utc):
+                return {
+                    "is_valid": False,
+                    "message": "Reset token has expired",
+                    "email": None
+                }
+            
+            return {
+                "is_valid": True,
+                "message": "Reset token is valid",
+                "email": user.email
+            }
+            
+        except Exception as e:
+            logger.error(f"Token validation failed: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Token validation failed"
             ) from e
         finally:
             await session.close()
@@ -486,3 +775,74 @@ class AuthenticationService:
             duration_ms=duration_ms
         )
         session.add(login_history)
+    
+    @staticmethod
+    async def _is_new_device_or_location(
+        user_id: uuid.UUID,
+        device_fingerprint: str,
+        ip_address: str,
+        session: AsyncSession
+    ) -> bool:
+        """
+        Check if this is a new device or location for the user
+        
+        Args:
+            user_id: User UUID
+            device_fingerprint: Browser/device fingerprint
+            ip_address: Client IP address
+            session: Database session
+            
+        Returns:
+            True if new device/location, False otherwise
+        """
+        try:
+            # Check if we've seen this device fingerprint for this user before
+            recent_cutoff = datetime.utcnow() - timedelta(days=30)  # Check last 30 days
+            
+            result = await session.execute(
+                select(LoginHistory).where(
+                    and_(
+                        LoginHistory.user_id == user_id,
+                        LoginHistory.result == "success",
+                        LoginHistory.created_at >= recent_cutoff,
+                        or_(
+                            LoginHistory.user_agent.contains(device_fingerprint[:50]),  # Partial match
+                            LoginHistory.ip_address == ip_address
+                        )
+                    )
+                ).limit(1)
+            )
+            
+            existing_login = result.scalar_one_or_none()
+            
+            # If no recent successful login from this device/IP, consider it new
+            return existing_login is None
+            
+        except Exception as e:
+            logger.error(f"Error checking device/location for user {user_id}: {str(e)}")
+            # Default to treating as new device for security
+            return True
+    
+    @staticmethod
+    async def get_user_by_id(user_id: uuid.UUID) -> Optional[User]:
+        """
+        Get user by ID
+        
+        Args:
+            user_id: User UUID
+            
+        Returns:
+            User object if found, None otherwise
+        """
+        session = await get_db_session()
+        try:
+            result = await session.execute(
+                select(User).where(User.id == user_id)
+            )
+            user = result.scalar_one_or_none()
+            return user
+        except Exception as e:
+            logger.error(f"Error getting user by ID {user_id}: {str(e)}")
+            return None
+        finally:
+            await session.close()

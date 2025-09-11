@@ -22,25 +22,39 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
     Rate limiting middleware to prevent brute force attacks
     """
     
-    def __init__(self, app, calls_per_minute: int = 60):
+    def __init__(self, app, calls_per_minute: int = 1000):  # Very high limit for debugging
         super().__init__(app)
         self.calls_per_minute = calls_per_minute
         self.calls = defaultdict(deque)
     
     async def dispatch(self, request: Request, call_next):
+        # Skip rate limiting for health checks and docs
+        if request.url.path in ["/", "/health", "/docs", "/redoc", "/openapi.json"]:
+            response = await call_next(request)
+            return response
+            
         # Get client IP
         client_ip = request.client.host if request.client else "unknown"
+        
+        # Log all requests for debugging
+        logger.info(f"Request from {client_ip}: {request.method} {request.url.path}")
         
         # Clean old requests (older than 1 minute)
         current_time = time.time()
         minute_ago = current_time - 60
         
-        # Remove old entries
-        while self.calls[client_ip] and self.calls[client_ip][0] < minute_ago:
-            self.calls[client_ip].popleft()
+        # Remove old entries - more thorough cleanup
+        if client_ip in self.calls:
+            old_count = len(self.calls[client_ip])
+            self.calls[client_ip] = deque([timestamp for timestamp in self.calls[client_ip] if timestamp >= minute_ago])
+            new_count = len(self.calls[client_ip])
+            if old_count != new_count:
+                logger.debug(f"Cleaned {old_count - new_count} old requests for {client_ip}")
         
         # Check rate limit
-        if len(self.calls[client_ip]) >= self.calls_per_minute:
+        current_requests = len(self.calls[client_ip])
+        if current_requests >= self.calls_per_minute:
+            logger.warning(f"Rate limit exceeded for IP {client_ip}: {current_requests} requests in last minute (limit: {self.calls_per_minute})")
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail="Rate limit exceeded. Please try again later."
@@ -48,6 +62,13 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         
         # Record this request
         self.calls[client_ip].append(current_time)
+        
+        # Log current request count
+        logger.debug(f"Request count for {client_ip}: {len(self.calls[client_ip])}/{self.calls_per_minute}")
+        
+        # Continue to next middleware/endpoint
+        response = await call_next(request)
+        return response
         
         # Continue to next middleware/endpoint
         response = await call_next(request)
