@@ -44,9 +44,9 @@ class OAuthService:
             'token_url': 'https://github.com/login/oauth/access_token',
             'userinfo_url': 'https://api.github.com/user',
             'scope': 'user:email',
-            'client_id': os.getenv('GITHUB_CLIENT_ID'),
-            'client_secret': os.getenv('GITHUB_CLIENT_SECRET'),
-            'redirect_uri': os.getenv('GITHUB_REDIRECT_URI', 'http://localhost:3000/auth/github/callback')
+            'client_id': settings.GITHUB_CLIENT_ID,
+            'client_secret': settings.GITHUB_CLIENT_SECRET,
+            'redirect_uri': settings.GITHUB_REDIRECT_URI or 'http://localhost:8000/api/v1/auth/oauth/github/callback'
         }
     }
     
@@ -214,6 +214,16 @@ class OAuthService:
                 
                 user_info = response.json()
                 
+                # Handle GitHub private emails
+                if provider == 'github' and not user_info.get('email'):
+                    github_emails = await OAuthService._get_github_emails(access_token)
+                    # Find primary email or first verified email
+                    primary_email = next((e for e in github_emails if e.get('primary')), None)
+                    if not primary_email:
+                        primary_email = next((e for e in github_emails if e.get('verified')), None)
+                    if primary_email:
+                        user_info['email'] = primary_email.get('email')
+                
                 # Normalize user info format across providers
                 normalized_info = OAuthService._normalize_user_info(provider, user_info)
                 
@@ -234,6 +244,34 @@ class OAuthService:
                 detail="Failed to retrieve user information"
             )
     
+    @staticmethod
+    async def _get_github_emails(access_token: str) -> list:
+        """
+        Get GitHub user emails (needed for private emails)
+        
+        Args:
+            access_token: GitHub OAuth access token
+            
+        Returns:
+            List of GitHub email objects
+        """
+        headers = {
+            'Authorization': f'Bearer {access_token}',
+            'Accept': 'application/json'
+        }
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get('https://api.github.com/user/emails', headers=headers)
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    logger.warning(f"Failed to fetch GitHub emails: {response.status_code}")
+                    return []
+        except Exception as e:
+            logger.error(f"Error fetching GitHub emails: {str(e)}")
+            return []
+
     @staticmethod
     def _normalize_user_info(provider: str, user_info: Dict[str, Any]) -> Dict[str, Any]:
         """
