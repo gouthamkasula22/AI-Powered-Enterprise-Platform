@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import RegistrationForm from '../components/RegistrationForm'
+import OAuthButtons from '../components/auth/OAuthButtons'
 
 const RegisterPage = () => {
   const { isAuthenticated } = useAuth()
@@ -50,6 +51,14 @@ const RegisterPage = () => {
               Sign in
             </Link>
           </p>
+        </div>
+        
+        <div className="mt-8">
+          <OAuthButtons 
+            onLoading={(loading) => {
+              // Handle loading state if needed
+            }}
+          />
         </div>
         
         <RegistrationForm onSuccess={() => setRegistrationSuccess(true)} />

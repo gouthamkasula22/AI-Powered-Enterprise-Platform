@@ -17,6 +17,7 @@ from app.schemas.auth import (
     ResetPasswordRequest,
     RefreshTokenRequest,
     EmailVerificationRequest,
+    ProfileUpdateRequest,
     EmailValidationRequest,
     EmailValidationResponse,
     PasswordValidationRequest,
@@ -31,6 +32,7 @@ from app.schemas.auth import (
     AuthResponse,
     TokenResponse,
     UserInfoResponse,
+    UserResponse,
     LogoutResponse,
     SuccessResponse
 )
@@ -39,8 +41,14 @@ from app.services.email_validation_service import EmailValidationService
 from app.services.password_validation_service import PasswordValidationService
 from app.core.security import validate_password_strength, verify_token
 
+# Import OAuth router
+from app.api.v1.auth.oauth import router as oauth_router
+
 # Create router for authentication endpoints
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+
+# Include OAuth router
+router.include_router(oauth_router)
 
 # Security scheme for JWT tokens
 security = HTTPBearer()
@@ -217,15 +225,120 @@ async def get_current_user(
                 detail="User not found"
             )
         
-        user_response = UserResponse(
-            id=str(user.id),
-            email=user.email,
-            is_verified=user.is_verified,
-            is_active=user.is_active,
-            created_at=user.created_at
-        )
+        try:
+            # Manually create UserResponse with proper field conversion
+            user_data = {
+                "id": str(user.id),
+                "email": user.email,
+                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "display_name": user.display_name,
+                "bio": user.bio,
+                "phone_number": user.phone_number,
+                "date_of_birth": user.date_of_birth,
+                "profile_picture_url": user.profile_picture_url,
+                "is_active": user.is_active,
+                "is_verified": user.is_verified,
+                "created_at": user.created_at,
+                "updated_at": user.updated_at
+            }
+            user_response = UserResponse(**user_data)
+            return UserInfoResponse(user=user_response)
+        except Exception as validation_error:
+            logger.error(f"UserResponse validation error: {str(validation_error)}")
+            logger.error(f"User object: {user}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Error formatting user data"
+            )
         
-        return UserInfoResponse(user=user_response)
+    except ValueError as ve:
+        logger.error(f"UUID conversion error: {str(ve)} for user_id: {current_user_id}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid user ID format"
+        )
+    except Exception as e:
+        logger.error(f"Error getting current user: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
+
+
+@router.put("/profile", response_model=UserResponse)
+async def update_profile(
+    profile_data: ProfileUpdateRequest,
+    current_user_id: str = Depends(get_current_user_id)
+) -> UserResponse:
+    """
+    Update user profile information
+    
+    Args:
+        profile_data: Profile update data
+        current_user_id: Current authenticated user ID
+        
+    Returns:
+        Updated user information
+        
+    Raises:
+        HTTPException: If user not found
+    """
+    import uuid
+    
+    try:
+        user_uuid = uuid.UUID(current_user_id)
+        
+        # Update profile with provided data
+        profile_dict = profile_data.model_dump(exclude_unset=True)
+        if not profile_dict:
+            # If no data provided, just return current user
+            user = await AuthenticationService.get_user_by_id(user_uuid)
+            if not user:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found"
+                )
+            # Manually create UserResponse with proper field conversion
+            return UserResponse(
+                id=str(user.id),
+                email=user.email,
+                is_verified=user.is_verified,
+                is_active=user.is_active,
+                created_at=user.created_at,
+                first_name=user.first_name,
+                last_name=user.last_name,
+                display_name=user.display_name,
+                bio=user.bio,
+                phone_number=user.phone_number,
+                date_of_birth=user.date_of_birth,
+                profile_picture_url=user.profile_picture_url
+            )
+        
+        updated_user = await AuthenticationService.update_user_profile(user_uuid, profile_dict)
+        
+        if not updated_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Manually create UserResponse with proper field conversion
+        return UserResponse(
+            id=str(updated_user.id),
+            email=updated_user.email,
+            is_verified=updated_user.is_verified,
+            is_active=updated_user.is_active,
+            created_at=updated_user.created_at,
+            first_name=updated_user.first_name,
+            last_name=updated_user.last_name,
+            display_name=updated_user.display_name,
+            bio=updated_user.bio,
+            phone_number=updated_user.phone_number,
+            date_of_birth=updated_user.date_of_birth,
+            profile_picture_url=updated_user.profile_picture_url
+        )
         
     except ValueError:
         raise HTTPException(
@@ -233,7 +346,7 @@ async def get_current_user(
             detail="Invalid user ID format"
         )
     except Exception as e:
-        logger.error(f"Error getting current user: {str(e)}")
+        logger.error(f"Error updating user profile: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error"
@@ -276,11 +389,11 @@ async def refresh_token(
     )
 
 
-@router.post("/change-password", response_model=SuccessResponse)
+@router.post("/change-password", response_model=MessageResponse)
 async def change_password(
     password_data: PasswordChangeRequest,
     current_user_id: str = Depends(get_current_user_id)
-) -> SuccessResponse:
+) -> MessageResponse:
     """
     Change user password
     
@@ -289,10 +402,62 @@ async def change_password(
         current_user_id: Current authenticated user ID
         
     Returns:
-        Success confirmation
+        Success message
+        
+    Raises:
+        HTTPException: If password change fails
     """
-    # TODO: Implement password change in AuthenticationService
-    return SuccessResponse(message="Password changed successfully", data=None)
+    import uuid
+    
+    try:
+        user_uuid = uuid.UUID(current_user_id)
+        
+        result = await AuthenticationService.change_password(
+            user_id=user_uuid,
+            current_password=password_data.current_password,
+            new_password=password_data.new_password
+        )
+        
+        if result["success"]:
+            return MessageResponse(message=result["message"])
+        else:
+            # Handle different error types
+            if "errors" in result:
+                # Password validation errors
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "message": result["message"],
+                        "errors": result["errors"]
+                    }
+                )
+            else:
+                # Other errors (wrong current password, etc.)
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=result["message"]
+                )
+        
+    except ValueError as e:
+        # UUID parsing error
+        logger.error(f"Invalid user ID format: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid user ID format"
+        )
+    except HTTPException:
+        # Re-raise HTTP exceptions (from above)
+        raise
+    except Exception as e:
+        # Catch all other exceptions and log them
+        logger.error(f"Unexpected error changing password: {str(e)}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error"
+        )
 
 
 @router.post("/forgot-password", response_model=SuccessResponse)
@@ -680,3 +845,4 @@ async def validate_reset_token_endpoint(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Token validation failed: {str(e)}"
         )
+

@@ -426,8 +426,20 @@ async def get_database_stats() -> dict:
     """Get database connection pool statistics"""
     try:
         pool = engine.pool
+        
+        # Get pool size - handle both property and method
+        pool_size = getattr(pool, '_pool_size', None)
+        if pool_size is None:
+            size_attr = getattr(pool, 'size', None)
+            if callable(size_attr):
+                pool_size = size_attr()
+            elif size_attr is not None:
+                pool_size = size_attr
+            else:
+                pool_size = 0
+        
         return {
-            "pool_size": getattr(pool, '_pool_size', None) or getattr(pool, 'size', 0),
+            "pool_size": pool_size,
             "checked_in": getattr(pool, '_checked_in', 0),
             "checked_out": getattr(pool, '_checked_out', 0), 
             "overflow": getattr(pool, '_overflow', 0),

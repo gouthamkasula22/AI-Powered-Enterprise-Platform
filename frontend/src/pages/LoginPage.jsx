@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
+import OAuthButtons from '../components/auth/OAuthButtons'
 
 const LoginPage = () => {
   const { login, isAuthenticated, isLoading } = useAuth()
@@ -54,6 +55,15 @@ const LoginPage = () => {
               create a new account
             </Link>
           </p>
+        </div>
+        
+        <div className="mt-8">
+          <OAuthButtons 
+            onLoading={(loading) => {
+              // Handle loading state if needed
+            }}
+            disabled={isSubmitting}
+          />
         </div>
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit(onSubmit)}>

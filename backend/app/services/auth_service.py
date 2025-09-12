@@ -846,3 +846,186 @@ class AuthenticationService:
             return None
         finally:
             await session.close()
+
+    @staticmethod
+    async def update_user_profile(user_id: uuid.UUID, profile_data: Dict[str, Any]) -> Optional[User]:
+        """
+        Update user profile information
+        
+        Args:
+            user_id: User ID to update
+            profile_data: Dictionary of profile fields to update
+            
+        Returns:
+            Updated user object or None if not found
+        """
+        session = await get_db_session()
+        try:
+            # Get the user first
+            result = await session.execute(
+                select(User).where(User.id == user_id)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                return None
+            
+            # Update user fields
+            for field, value in profile_data.items():
+                if hasattr(user, field):
+                    setattr(user, field, value)
+            
+            # Update timestamp
+            user.updated_at = datetime.now(timezone.utc)
+            
+            # Commit the changes
+            await session.commit()
+            await session.refresh(user)
+            
+            logger.info(f"User profile updated successfully for user {user_id}")
+            return user
+            
+        except Exception as e:
+            logger.error(f"Error updating user profile for {user_id}: {str(e)}")
+            await session.rollback()
+            return None
+        finally:
+            await session.close()
+
+    @staticmethod
+    async def change_password(user_id: uuid.UUID, current_password: str, new_password: str) -> Dict[str, Any]:
+        """
+        Change user password after verifying current password
+        
+        Args:
+            user_id: User ID
+            current_password: Current password for verification
+            new_password: New password to set
+            
+        Returns:
+            Dict with success status and message/errors
+        """
+        session = await get_db_session()
+        try:
+            # Get the user
+            result = await session.execute(
+                select(User).where(User.id == user_id)
+            )
+            user = result.scalar_one_or_none()
+            
+            if not user:
+                return {
+                    "success": False,
+                    "message": "User not found"
+                }
+            
+            # Check if user has a password hash
+            if not user.password_hash:
+                return {
+                    "success": False,
+                    "message": "User account does not have a password set"
+                }
+            
+            # Verify current password
+            logger.info(f"Verifying current password for user {user_id}")
+            logger.info(f"Current password hash in DB: {user.password_hash[:20]}...")
+            if not verify_password(current_password, user.password_hash):
+                logger.warning(f"Current password verification failed for user {user_id}")
+                return {
+                    "success": False,
+                    "message": "Current password is incorrect"
+                }
+            logger.info(f"Current password verified successfully for user {user_id}")
+            
+            # Validate new password strength
+            password_validation = validate_password_strength(new_password)
+            if not password_validation["valid"]:
+                return {
+                    "success": False,
+                    "message": "New password does not meet requirements",
+                    "errors": password_validation["errors"]
+                }
+            
+            # Check if new password is same as current password
+            if verify_password(new_password, user.password_hash):
+                return {
+                    "success": False,
+                    "message": "New password must be different from current password"
+                }
+            
+            # Hash new password
+            new_password_hash = get_password_hash(new_password)
+            logger.info(f"Generated new password hash for user {user_id}: {new_password_hash[:20]}...")
+            
+            # Update password in user table
+            old_password_hash = user.password_hash
+            user.password_hash = new_password_hash
+            user.updated_at = datetime.now(timezone.utc)
+            user.password_changed_at = datetime.now(timezone.utc)
+            
+            logger.info(f"Updated user object - Old hash: {old_password_hash[:20]}..., New hash: {new_password_hash[:20]}...")
+            
+            # Analyze password characteristics for history record
+            password_length = len(new_password)
+            has_uppercase = any(c.isupper() for c in new_password)
+            has_lowercase = any(c.islower() for c in new_password)
+            has_digits = any(c.isdigit() for c in new_password)
+            has_symbols = any(not c.isalnum() for c in new_password)
+            
+            # Create password history record
+            from app.models import PasswordHistory
+            password_history = PasswordHistory(
+                user_id=user_id,
+                password_hash=new_password_hash,
+                length=password_length,
+                has_uppercase=has_uppercase,
+                has_lowercase=has_lowercase,
+                has_digits=has_digits,
+                has_symbols=has_symbols,
+                is_compromised=False,
+                policy_compliant=True,
+                change_reason="user_requested",
+                set_at=datetime.now(timezone.utc)
+            )
+            session.add(password_history)
+            
+            # Commit changes
+            await session.commit()
+            logger.info(f"Database transaction committed for user {user_id}")
+            
+            # Refresh user to ensure changes are persisted
+            await session.refresh(user)
+            
+            # Check if password_hash is properly set
+            current_hash = user.password_hash
+            if current_hash:
+                logger.info(f"User refreshed from DB - Current hash: {current_hash[:20]}...")
+                
+                # Verify the password change by checking the new password against the stored hash
+                verification_test = verify_password(new_password, current_hash)
+                logger.info(f"Post-commit password verification test: {verification_test}")
+                
+                if not verification_test:
+                    logger.error(f"CRITICAL: Password verification failed after commit for user {user_id}")
+                    logger.error(f"Expected hash: {new_password_hash[:20]}...")
+                    logger.error(f"Actual hash in DB: {current_hash[:20]}...")
+            else:
+                logger.error(f"CRITICAL: User password_hash is None after commit for user {user_id}")
+            
+            logger.info(f"Password changed successfully for user {user_id}")
+            logger.info(f"New password hash stored: {new_password_hash[:20]}...")
+            
+            return {
+                "success": True,
+                "message": "Password changed successfully"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error changing password for user {user_id}: {str(e)}")
+            await session.rollback()
+            return {
+                "success": False,
+                "message": "Failed to change password"
+            }
+        finally:
+            await session.close()

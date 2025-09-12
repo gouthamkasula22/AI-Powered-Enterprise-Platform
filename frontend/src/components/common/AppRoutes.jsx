@@ -6,6 +6,7 @@ import DashboardPage from '../../pages/DashboardPage'
 import VerifyEmailPage from '../../pages/VerifyEmailPage'
 import ForgotPasswordPage from '../../pages/ForgotPasswordPage'
 import ResetPasswordPage from '../../pages/ResetPasswordPage'
+import OAuthCallback from '../../pages/auth/OAuthCallback'
 import ProtectedRoute from '../auth/ProtectedRoute'
 
 const AppRoutes = () => {
@@ -17,6 +18,7 @@ const AppRoutes = () => {
       <Route path="/verify-email/:token" element={<VerifyEmailPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+      <Route path="/auth/callback" element={<OAuthCallback />} />
       <Route 
         path="/dashboard" 
         element={

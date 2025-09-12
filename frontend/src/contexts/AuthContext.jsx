@@ -69,12 +69,28 @@ export const AuthProvider = ({ children }) => {
     initializeAuth()
   }, [])
 
-  const login = async (email, password) => {
+  const login = async (emailOrData, password, showToast = true) => {
     try {
       setIsLoading(true)
       
+      // Handle OAuth login data format
+      if (typeof emailOrData === 'object' && emailOrData.user && emailOrData.tokens) {
+        const { user: userData, tokens } = emailOrData
+        
+        // Store tokens and user data for OAuth login
+        localStorage.setItem('access_token', tokens.access_token)
+        localStorage.setItem('refresh_token', tokens.refresh_token)
+        localStorage.setItem('user', JSON.stringify(userData))
+        
+        setUser(userData)
+        setIsAuthenticated(true)
+        
+        return { success: true }
+      }
+      
+      // Handle regular email/password login
       const response = await axios.post('/api/v1/auth/login', {
-        email,
+        email: emailOrData,
         password
       })
 
@@ -88,7 +104,9 @@ export const AuthProvider = ({ children }) => {
       setUser(userData)
       setIsAuthenticated(true)
       
-      toast.success('Login successful')
+      if (showToast) {
+        toast.success('Login successful')
+      }
       return { success: true }
       
     } catch (error) {
@@ -162,10 +180,15 @@ export const AuthProvider = ({ children }) => {
       const response = await axios.get('/api/v1/auth/me')
       const userData = response.data
       
-      setUser(userData)
-      localStorage.setItem('user', JSON.stringify(userData))
+      // Extract user data from the response (API returns {user: UserResponse})
+      const user = userData.user || userData
+      console.log('refreshUserData - received:', userData)
+      console.log('refreshUserData - setting user to:', user)
       
-      return { success: true, data: userData }
+      setUser(user)
+      localStorage.setItem('user', JSON.stringify(user))
+      
+      return { success: true, data: user }
     } catch (error) {
       console.error('Failed to refresh user data:', error)
       return { success: false, error: error.response?.data?.detail || 'Failed to refresh user data' }
@@ -193,6 +216,30 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  const updateProfile = async (profileData) => {
+    setIsLoading(true)
+    try {
+      console.log('Updating profile with data:', profileData)
+      const response = await axios.put('/api/v1/auth/profile', profileData)
+      
+      // Profile update returns UserResponse directly (not wrapped in { user: ... })
+      const updatedUser = response.data
+      console.log('Profile update response:', updatedUser)
+      console.log('Setting user state to:', updatedUser)
+      setUser(updatedUser)
+      localStorage.setItem('user', JSON.stringify(updatedUser))
+      
+      return { success: true, user: updatedUser }
+      
+    } catch (error) {
+      console.error('Profile update error:', error.response?.data)
+      const message = error.response?.data?.detail || 'Failed to update profile'
+      return { success: false, error: message }
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const value = {
     user,
     isLoading,
@@ -202,7 +249,8 @@ export const AuthProvider = ({ children }) => {
     logout,
     verifyEmail,
     resendVerification,
-    refreshUserData
+    refreshUserData,
+    updateProfile
   }
 
   return (

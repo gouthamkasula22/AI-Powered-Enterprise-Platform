@@ -1,0 +1,74 @@
+[
+  {
+    "test_name": "Backend Health",
+    "status": "PASS",
+    "details": "Backend is running",
+    "timestamp": "2025-09-11T16:37:50.513543"
+  },
+  {
+    "test_name": "Email Validation - Valid",
+    "status": "PASS",
+    "details": "Valid email accepted",
+    "timestamp": "2025-09-11T16:37:50.584777"
+  },
+  {
+    "test_name": "Email Validation - Invalid",
+    "status": "FAIL",
+    "details": "Status: 422",
+    "timestamp": "2025-09-11T16:37:50.590044"
+  },
+  {
+    "test_name": "Password Validation - Strong",
+    "status": "PASS",
+    "details": "Strength: Very Strong",
+    "timestamp": "2025-09-11T16:37:50.594809"
+  },
+  {
+    "test_name": "Password Validation - Weak",
+    "status": "PASS",
+    "details": "Weak password rejected",
+    "timestamp": "2025-09-11T16:37:50.598579"
+  },
+  {
+    "test_name": "User Registration",
+    "status": "PASS",
+    "details": "User registered: User registered successfully",
+    "timestamp": "2025-09-11T16:37:51.663080"
+  },
+  {
+    "test_name": "Forgot Password Request",
+    "status": "PASS",
+    "details": "Reset email requested: If an account with that email exists, a password reset link has been sent.",
+    "timestamp": "2025-09-11T16:37:52.306016"
+  },
+  {
+    "test_name": "Resend Verification",
+    "status": "PASS",
+    "details": "Verification email resent: Verification email has been resent. Please check your inbox.",
+    "timestamp": "2025-09-11T16:37:53.011427"
+  },
+  {
+    "test_name": "Frontend Page /",
+    "status": "PASS",
+    "details": "Page accessible",
+    "timestamp": "2025-09-11T16:37:53.019412"
+  },
+  {
+    "test_name": "Frontend Page /login",
+    "status": "PASS",
+    "details": "Page accessible",
+    "timestamp": "2025-09-11T16:37:53.025043"
+  },
+  {
+    "test_name": "Frontend Page /register",
+    "status": "PASS",
+    "details": "Page accessible",
+    "timestamp": "2025-09-11T16:37:53.029030"
+  },
+  {
+    "test_name": "Frontend Page /forgot-password",
+    "status": "PASS",
+    "details": "Page accessible",
+    "timestamp": "2025-09-11T16:37:53.033684"
+  }
+]

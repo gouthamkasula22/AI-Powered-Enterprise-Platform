@@ -48,6 +48,16 @@ class EmailVerificationRequest(BaseModel):
     token: str = Field(..., description="Email verification token")
 
 
+class ProfileUpdateRequest(BaseModel):
+    """Profile update request schema"""
+    first_name: Optional[str] = Field(None, max_length=50, description="User first name")
+    last_name: Optional[str] = Field(None, max_length=50, description="User last name")
+    display_name: Optional[str] = Field(None, max_length=100, description="User display name")
+    bio: Optional[str] = Field(None, max_length=500, description="User bio")
+    phone_number: Optional[str] = Field(None, max_length=20, description="User phone number")
+    date_of_birth: Optional[datetime] = Field(None, description="User date of birth")
+
+
 class EmailValidationRequest(BaseModel):
     """Email validation request schema"""
     email: EmailStr = Field(..., description="Email address to validate")
@@ -94,6 +104,13 @@ class UserResponse(BaseModel):
     is_verified: bool = Field(..., description="Whether the email is verified")
     is_active: bool = Field(..., description="Whether the account is active")
     created_at: datetime = Field(..., description="Account creation timestamp")
+    first_name: Optional[str] = Field(None, description="User first name")
+    last_name: Optional[str] = Field(None, description="User last name")
+    display_name: Optional[str] = Field(None, description="User display name")
+    bio: Optional[str] = Field(None, description="User bio")
+    phone_number: Optional[str] = Field(None, description="User phone number")
+    date_of_birth: Optional[datetime] = Field(None, description="User date of birth")
+    profile_picture_url: Optional[str] = Field(None, description="User profile picture URL")
     
     model_config = ConfigDict(from_attributes=True)
 
