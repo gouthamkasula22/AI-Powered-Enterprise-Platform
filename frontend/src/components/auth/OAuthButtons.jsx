@@ -13,8 +13,9 @@ const GoogleLoginButton = ({
         
         // Redirect to backend OAuth endpoint
         const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-        const currentUrl = window.location.origin;
-        const redirectUri = `${currentUrl}/auth/callback`;
+        
+        // Use the backend callback URL that Google will redirect to
+        const redirectUri = `${backendUrl}/api/v1/auth/oauth/google/callback`;
         
         // Store the current page URL to redirect back after auth
         const returnUrl = window.location.pathname;

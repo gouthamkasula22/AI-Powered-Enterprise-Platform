@@ -1,8 +1,8 @@
 """
-Test Configuration and Fixtures
+Test Configuration for Clean Architecture Backend
 
 This module provides pytest configuration and shared fixtures for the
-User Authentication System test suite.
+User Authentication System test suite using Clean Architecture.
 """
 
 import asyncio
@@ -10,8 +10,7 @@ import os
 import sys
 import pytest
 
-# Add the backend directory to Python path so we can import app modules
-# Get the absolute path to the backend directory
+# Add the backend directory to Python path for clean architecture imports
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 backend_path = os.path.join(project_root, 'backend')
@@ -23,103 +22,31 @@ if backend_path not in sys.path:
 if not os.path.exists(backend_path):
     raise ImportError(f"Backend directory not found at: {backend_path}")
 
-# Change to backend directory for imports to work properly
-original_cwd = os.getcwd()
-os.chdir(backend_path)
-from typing import AsyncGenerator, Generator
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import NullPool
-
-from app.core.config import Settings
-from app.core.database import Base, get_db
-from main import create_app
-
 
 @pytest.fixture(scope="session")
-def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
+def event_loop():
     """Create an instance of the default event loop for the test session."""
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
 
 
-@pytest.fixture(scope="session")
-def test_settings() -> Settings:
-    """Create test-specific settings."""
-    return Settings(
-        ENVIRONMENT="test",
-        DEBUG=True,
-        DATABASE_URL="postgresql+asyncpg://test_user:test_password@localhost:5432/test_auth_db",
-        SECRET_KEY="test-secret-key-for-testing-only",
-        LOG_LEVEL="DEBUG"
-    )
-
-
-@pytest.fixture(scope="session")
-async def test_engine(test_settings: Settings):
-    """Create test database engine."""
-    engine = create_async_engine(
-        test_settings.DATABASE_URL,
-        echo=False,
-        poolclass=NullPool,  # Don't pool connections in tests
-    )
-    
-    # Create all tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    
-    yield engine
-    
-    # Cleanup
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-    
-    await engine.dispose()
-
-
 @pytest.fixture
-async def test_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
-    """Create test database session."""
-    async_session_maker = async_sessionmaker(
-        test_engine,
-        class_=AsyncSession,
-        expire_on_commit=False
-    )
+def test_settings():
+    """Create test-specific settings for clean architecture."""
+    from src.shared.config import get_settings
     
-    async with async_session_maker() as session:
-        yield session
-        await session.rollback()
-
-
-@pytest.fixture
-def test_app(test_settings: Settings):
-    """Create test FastAPI application."""
     # Override settings for testing
-    from app.core import config
-    original_settings = config.settings
-    config.settings = test_settings
+    settings = get_settings()
+    settings.ENVIRONMENT = "test"
+    settings.DATABASE_URL = "postgresql+asyncpg://test_user:test_password@localhost:5432/test_auth_db"
+    settings.DEBUG = True
     
-    app = create_app()
-    
-    yield app
-    
-    # Restore original settings
-    config.settings = original_settings
+    return settings
 
 
-@pytest.fixture
-async def test_client(test_app, test_session: AsyncSession):
-    """Create test HTTP client with database session override."""
-    from fastapi.testclient import TestClient
-    
-    # Override database dependency
-    async def override_get_db():
-        yield test_session
-    
-    test_app.dependency_overrides[get_db] = override_get_db
-    
-    with TestClient(test_app) as client:
-        yield client
-    
-    # Cleanup
-    test_app.dependency_overrides.clear()
+# TODO: Add more fixtures for clean architecture testing
+# - Database session fixtures
+# - Repository mock fixtures  
+# - Use case test fixtures
+# - Domain entity fixtures

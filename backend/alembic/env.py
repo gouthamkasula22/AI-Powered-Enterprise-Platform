@@ -26,8 +26,9 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import application components
 try:
-    from app.core.config import settings
-    from app.models import Base  # This will be created in the next step
+    from src.shared.config import get_settings
+    from src.infrastructure.database.config import Base
+    settings = get_settings()
 except ImportError as import_error:
     # Handle import errors gracefully during initial setup
     print(f"Warning: Could not import app modules: {import_error}")
@@ -43,8 +44,8 @@ config = context.config
 
 # Set the database URL from our settings if available
 if settings:
-    config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
-    logger.info(f"Using database URL from settings: {settings.DATABASE_URL}")
+    config.set_main_option("sqlalchemy.url", settings.database_url)
+    logger.info(f"Using database URL from settings: {settings.database_url}")
 else:
     logger.warning("Settings not available, using default database URL from alembic.ini")
 
@@ -73,8 +74,8 @@ def get_database_url() -> str:
         ValueError: If no valid database URL is found.
     """
     # Try to get URL from settings first
-    if settings and hasattr(settings, 'DATABASE_URL'):
-        return settings.DATABASE_URL
+    if settings and hasattr(settings, 'database_url'):
+        return settings.database_url
     
     # Fallback to alembic.ini configuration
     url = config.get_main_option("sqlalchemy.url")
