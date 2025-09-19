@@ -18,11 +18,6 @@ export const emailService = {
     return response.data
   },
 
-  async validateResetToken(token) {
-    const response = await apiClient.get(`/api/v1/auth/validate-reset-token?token=${token}`)
-    return response.data
-  },
-
   async resetPassword(token, newPassword) {
     console.log('emailService.resetPassword called with:', { token, newPassword: '***' })
     const requestData = { 

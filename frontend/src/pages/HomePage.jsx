@@ -18,14 +18,45 @@ const HomePage = () => {
           {isAuthenticated ? (
             <div className="space-y-4">
               <p className="text-lg text-gray-700">
-                Welcome back, {user?.email}
+                Welcome back, {user?.first_name || user?.email}
               </p>
-              <Link 
-                to="/dashboard" 
-                className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-md transition-colors"
-              >
-                Go to Dashboard
-              </Link>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <Link 
+                  to="/dashboard" 
+                  className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-md transition-colors"
+                >
+                  Go to Dashboard
+                </Link>
+                
+                {/* Admin Navigation */}
+                {(user?.role === 'ADMIN' || user?.role === 'SUPERADMIN') && (
+                  <>
+                    <Link 
+                      to="/admin" 
+                      className="inline-block bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-6 rounded-md transition-colors"
+                    >
+                      Admin Dashboard
+                    </Link>
+                    <Link 
+                      to="/admin/users" 
+                      className="inline-block bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-md transition-colors"
+                    >
+                      Manage Users
+                    </Link>
+                  </>
+                )}
+              </div>
+              
+              {/* Role Display */}
+              <div className="mt-4">
+                <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
+                  user?.role === 'SUPERADMIN' ? 'bg-purple-100 text-purple-800' :
+                  user?.role === 'ADMIN' ? 'bg-blue-100 text-blue-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  Role: {user?.role || 'USER'}
+                </span>
+              </div>
             </div>
           ) : (
             <div className="space-x-4">

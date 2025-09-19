@@ -46,6 +46,49 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  
+  // Role-based access helpers
+  const getUserRole = useCallback(() => {
+    return user?.role || 'user'
+  }, [user])
+  
+  const hasRole = useCallback((requiredRole) => {
+    const userRole = getUserRole()
+    const roleHierarchy = {
+      'user': 1,
+      'admin': 2,
+      'superadmin': 3,
+      // Support legacy uppercase roles for backward compatibility
+      'USER': 1,
+      'ADMIN': 2,
+      'SUPERADMIN': 3
+    }
+    
+    return (roleHierarchy[userRole] || 0) >= (roleHierarchy[requiredRole] || 0)
+  }, [getUserRole])
+  
+  const hasPermission = useCallback((permission) => {
+    const userRole = getUserRole()
+    const rolePermissions = {
+      'user': ['read_own_profile'],
+      'admin': ['read_own_profile', 'read_users', 'manage_users'],
+      'superadmin': ['read_own_profile', 'read_users', 'manage_users', 'manage_admins', 'system_admin'],
+      // Support legacy uppercase roles for backward compatibility
+      'USER': ['read_own_profile'],
+      'ADMIN': ['read_own_profile', 'read_users', 'manage_users'],
+      'SUPERADMIN': ['read_own_profile', 'read_users', 'manage_users', 'manage_admins', 'system_admin']
+    }
+    
+    return rolePermissions[userRole]?.includes(permission) || false
+  }, [getUserRole])
+  
+  const isAdmin = useCallback(() => {
+    return hasRole('ADMIN')
+  }, [hasRole])
+  
+  const isSuperAdmin = useCallback(() => {
+    return hasRole('SUPERADMIN')
+  }, [hasRole])
 
   // Check if user is logged in on app start
   useEffect(() => {
@@ -94,11 +137,11 @@ export const AuthProvider = ({ children }) => {
         password
       })
 
-      const { user: userData, tokens } = response.data
+      const { user: userData, access_token, refresh_token } = response.data
       
       // Store tokens and user data
-      localStorage.setItem('access_token', tokens.access_token)
-      localStorage.setItem('refresh_token', tokens.refresh_token)
+      localStorage.setItem('access_token', access_token)
+      localStorage.setItem('refresh_token', refresh_token)
       localStorage.setItem('user', JSON.stringify(userData))
       
       setUser(userData)
@@ -239,6 +282,12 @@ export const AuthProvider = ({ children }) => {
       setIsLoading(false)
     }
   }
+  
+  // Helper function to get authorization headers for API requests
+  const getAuthHeader = () => {
+    const token = localStorage.getItem('access_token')
+    return token ? { 'Authorization': `Bearer ${token}` } : {}
+  }
 
   const value = {
     user,
@@ -250,7 +299,14 @@ export const AuthProvider = ({ children }) => {
     verifyEmail,
     resendVerification,
     refreshUserData,
-    updateProfile
+    updateProfile,
+    // Role-based access control
+    getUserRole,
+    hasRole,
+    hasPermission,
+    isAdmin,
+    isSuperAdmin,
+    getAuthHeader
   }
 
   return (

@@ -7,7 +7,11 @@ import VerifyEmailPage from '../../pages/VerifyEmailPage'
 import ForgotPasswordPage from '../../pages/ForgotPasswordPage'
 import ResetPasswordPage from '../../pages/ResetPasswordPage'
 import OAuthCallback from '../../pages/auth/OAuthCallback'
-import ProtectedRoute from '../auth/ProtectedRoute'
+import UnauthorizedPage from '../../pages/UnauthorizedPage'
+import ProtectedRoute, { AdminRoute, SuperAdminRoute } from '../ProtectedRoute'
+import AdminDashboard from '../../pages/admin/AdminDashboard'
+import UserManagement from '../../pages/admin/UserManagement'
+import SystemSettings from '../../pages/admin/SystemSettings'
 
 const AppRoutes = () => {
   return (
@@ -19,6 +23,9 @@ const AppRoutes = () => {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
       <Route path="/auth/callback" element={<OAuthCallback />} />
+      <Route path="/unauthorized" element={<UnauthorizedPage />} />
+      
+      {/* Protected user routes */}
       <Route 
         path="/dashboard" 
         element={
@@ -27,6 +34,35 @@ const AppRoutes = () => {
           </ProtectedRoute>
         } 
       />
+      
+      {/* Admin-only routes */}
+      <Route 
+        path="/admin" 
+        element={
+          <AdminRoute>
+            <AdminDashboard />
+          </AdminRoute>
+        } 
+      />
+      <Route 
+        path="/admin/users" 
+        element={
+          <AdminRoute>
+            <UserManagement />
+          </AdminRoute>
+        } 
+      />
+      
+      {/* Super admin-only routes */}
+      <Route 
+        path="/admin/system" 
+        element={
+          <SuperAdminRoute>
+            <SystemSettings />
+          </SuperAdminRoute>
+        } 
+      />
+      
       {/* Redirect any unknown routes to home */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

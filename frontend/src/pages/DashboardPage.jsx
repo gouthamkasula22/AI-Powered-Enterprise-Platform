@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { RoleGuard } from '../components/ProtectedRoute'
 import NotificationCenter from '../components/common/NotificationCenter'
 import EmailVerificationStatus from '../components/auth/EmailVerificationStatus'
 import ProfileView from '../components/profile/ProfileView'
 import ChangePassword from '../components/security/ChangePassword'
 
 const DashboardPage = () => {
-  const { user, logout, refreshUserData } = useAuth()
+  const { user, logout, refreshUserData, getUserRole, isAdmin } = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
 
   // Refresh user data when dashboard loads to ensure we have latest verification status
@@ -47,8 +49,29 @@ const DashboardPage = () => {
             
             <div className="flex items-center space-x-4">
               <NotificationCenter />
+              
+              {/* Role Badge */}
+              <div className="flex items-center space-x-2">
+                <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                  getUserRole() === 'superadmin' ? 'bg-purple-100 text-purple-800' :
+                  getUserRole() === 'admin' ? 'bg-blue-100 text-blue-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {getUserRole().toUpperCase()}
+                </span>
+                
+                <RoleGuard requireRole="admin">
+                  <Link
+                    to="/admin"
+                    className="text-sm text-blue-600 hover:text-blue-900 transition-colors"
+                  >
+                    Admin Panel
+                  </Link>
+                </RoleGuard>
+              </div>
+              
               <span className="text-sm text-gray-700">
-                Welcome, {user?.email}
+                Welcome, {user?.first_name || user?.email}
               </span>
               <button
                 onClick={handleLogout}
@@ -104,8 +127,8 @@ const DashboardPage = () => {
                     </div>
                     
                     <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                      <h3 className="text-lg font-semibold text-green-900 mb-2">Security Level</h3>
-                      <p className="text-green-700">Standard</p>
+                      <h3 className="text-lg font-semibold text-green-900 mb-2">User Role</h3>
+                      <p className="text-green-700">{getUserRole()}</p>
                     </div>
                     
                     <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -132,6 +155,26 @@ const DashboardPage = () => {
                           <h4 className="font-medium text-gray-900">Security Settings</h4>
                           <p className="text-sm text-gray-600 mt-1">Change password and security options</p>
                         </button>
+                        
+                        <RoleGuard requireRole="admin">
+                          <Link
+                            to="/admin"
+                            className="p-4 text-left border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors"
+                          >
+                            <h4 className="font-medium text-blue-900">Admin Dashboard</h4>
+                            <p className="text-sm text-blue-600 mt-1">Manage users and system settings</p>
+                          </Link>
+                        </RoleGuard>
+                        
+                        <RoleGuard requireRole="admin">
+                          <Link
+                            to="/admin/users"
+                            className="p-4 text-left border border-green-200 rounded-lg hover:bg-green-50 transition-colors"
+                          >
+                            <h4 className="font-medium text-green-900">User Management</h4>
+                            <p className="text-sm text-green-600 mt-1">View and manage user accounts</p>
+                          </Link>
+                        </RoleGuard>
                       </div>
                     </div>
                   </div>

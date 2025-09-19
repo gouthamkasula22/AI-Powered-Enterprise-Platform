@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
+import { useAuth } from '../../contexts/AuthContext'
 import ProfileEdit from './ProfileEdit'
 
 const ProfileView = ({ user, onProfileUpdate }) => {
+  const { getUserRole } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
 
   // Debug: Log when user prop changes
@@ -127,6 +129,18 @@ const ProfileView = ({ user, onProfileUpdate }) => {
                 <div>
                   <dt className="text-sm font-medium text-gray-700">Phone Number</dt>
                   <dd className="text-gray-900">{user?.phone_number || 'Not specified'}</dd>
+                </div>
+                <div>
+                  <dt className="text-sm font-medium text-gray-700">Account Role</dt>
+                  <dd className="text-gray-900">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      getUserRole() === 'SUPERADMIN' ? 'bg-purple-100 text-purple-800' :
+                      getUserRole() === 'ADMIN' ? 'bg-blue-100 text-blue-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {getUserRole()}
+                    </span>
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-sm font-medium text-gray-700">Member Since</dt>
