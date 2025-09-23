@@ -16,6 +16,7 @@ async def list_users(
 - Get user statistics
 """
 
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import List, Optional
 from datetime import datetime
@@ -32,8 +33,11 @@ from ....domain.exceptions.domain_exceptions import (
 from ....infrastructure.database.repositories import SqlUserRepository
 from ....infrastructure.database.database import get_db_session
 from ....infrastructure.cache.token_blacklist import TokenBlacklistService
-from ..dependencies.auth import require_admin, require_superadmin, get_current_user
+from ..dependencies.auth import require_admin, require_superadmin, get_current_user, get_auth_use_cases
 from ..schemas.auth import MessageResponse
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/admin/users", tags=["admin-users"])
@@ -247,10 +251,12 @@ async def toggle_user_status(
     request: ToggleUserStatusRequest,
     current_user: UserDTO = Depends(require_admin),
     user_repo: SqlUserRepository = Depends(get_user_repository),
-    session: AsyncSession = Depends(get_db_session)
+    session: AsyncSession = Depends(get_db_session),
+    auth_use_cases: AuthenticationUseCases = Depends(get_auth_use_cases)
 ):
     """
     Activate or deactivate a user account.
+    When deactivating a user, all their active sessions will be revoked.
     Accessible by ADMIN and SUPERADMIN roles only.
     """
     try:
@@ -279,11 +285,42 @@ async def toggle_user_status(
                 "user_id": request.user_id
             }
         )
+        
+        # If deactivating user, revoke all their sessions
+        if not request.is_active:
+            try:
+                logger.info(f"Deactivating user {request.user_id} - revoking all sessions")
+                # Use auth_use_cases to logout all devices
+                result = await auth_use_cases.logout_all_devices(request.user_id)
+                if result.success:
+                    # Update last_logout timestamp
+                    try:
+                        await session.execute(
+                            text("UPDATE users SET last_logout = :timestamp WHERE id = :user_id"),
+                            {
+                                "timestamp": datetime.utcnow(),
+                                "user_id": request.user_id
+                            }
+                        )
+                        logger.info(f"Successfully revoked all sessions for user {request.user_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to update last_logout timestamp but sessions were revoked: {str(e)}")
+                        # Continue since the tokens were still blacklisted
+                else:
+                    logger.warning(f"Session revocation for user {request.user_id} returned unsuccessful result")
+            except Exception as e:
+                logger.error(f"Failed to revoke sessions for user {request.user_id}: {str(e)}")
+                # Continue with deactivation even if session revocation fails
+        
         await session.commit()
         
         status_text = "activated" if request.is_active else "deactivated"
+        message = f"User account {status_text} successfully"
+        if not request.is_active:
+            message += " and all sessions revoked"
+            
         return MessageResponse(
-            message=f"User account {status_text} successfully"
+            message=message
         )
         
     except HTTPException:
@@ -352,7 +389,9 @@ async def get_user_statistics(
 async def revoke_user_sessions(
     user_id: int,
     current_user: UserDTO = Depends(require_admin),
-    user_repo: SqlUserRepository = Depends(get_user_repository)
+    user_repo: SqlUserRepository = Depends(get_user_repository),
+    session: AsyncSession = Depends(get_db_session),
+    auth_use_cases: AuthenticationUseCases = Depends(get_auth_use_cases)
 ):
     """
     Revoke all active sessions for a user (force logout).
@@ -370,22 +409,47 @@ async def revoke_user_sessions(
         # Prevent self-logout unless it's intentional
         if current_user.id == target_user.id:
             return MessageResponse(
-                message="Cannot revoke your own sessions through admin panel. Use logout instead."
+                message="Cannot revoke your own sessions through admin panel. Use logout instead.",
+                success=True
             )
         
-        # TODO: Implement session revocation logic
-        # This would typically involve:
-        # 1. Adding user to token blacklist
-        # 2. Updating user's last_logout timestamp
-        # 3. Invalidating refresh tokens
+        logger.info(f"Admin user {current_user.id} revoking all sessions for user {user_id}")
+        
+        # 1. Blacklist all tokens for the user
+        result = await auth_use_cases.logout_all_devices(user_id)
+        if not result.success:
+            logger.error(f"Failed to revoke sessions for user {user_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to revoke sessions"
+            )
+        
+        # 2. Update user's last_logout timestamp using try/except to handle potential DB issues
+        try:
+            await session.execute(
+                text("UPDATE users SET last_logout = :timestamp WHERE id = :user_id"),
+                {
+                    "timestamp": datetime.utcnow(),
+                    "user_id": user_id
+                }
+            )
+            await session.commit()
+        except Exception as e:
+            logger.warning(f"Failed to update last_logout timestamp but sessions were revoked: {str(e)}")
+            # Continue since the tokens were still blacklisted
+        
+        logger.info(f"Successfully revoked all sessions for user {user_id}")
         
         return MessageResponse(
-            message=f"All sessions revoked for user: {target_user.email.value if target_user.email else 'Unknown'}"
+            message=f"All sessions revoked for user: {target_user.email.value if target_user.email else 'Unknown'}",
+            success=True
         )
         
     except HTTPException:
         raise
     except Exception as e:
+        await session.rollback()
+        logger.error(f"Exception in revoke_user_sessions: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to revoke user sessions: {str(e)}"

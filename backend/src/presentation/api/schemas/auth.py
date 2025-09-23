@@ -113,6 +113,7 @@ class RefreshTokenResponse(BaseModel):
 class MessageResponse(BaseModel):
     """Simple message response"""
     message: str = Field(..., description="Response message")
+    success: bool = Field(default=True, description="Success indicator")
     timestamp: datetime = Field(default_factory=datetime.utcnow, description="Response timestamp")
 
 

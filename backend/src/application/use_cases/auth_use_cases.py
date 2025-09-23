@@ -424,35 +424,43 @@ class AuthenticationUseCases:
             access_token: JWT access token
             
         Returns:
-            Current user information
+            UserDTO object for the current user
             
         Raises:
             ValidationError: If token is invalid or expired
+            TokenBlacklistedException: If token has been blacklisted
             UserNotFoundException: If user not found
+            AccountDeactivatedException: If user account is deactivated
         """
-        try:
-            from ...infrastructure.security.jwt_service import TokenType
-            
-            # Validate token using the auth service
-            token_data = await self.auth_service.validate_token(access_token, TokenType.ACCESS)
-            
-            if not token_data:
-                raise ValidationError("Invalid or expired token")
-            
-            user_id = token_data.user_id
-            if not user_id:
-                raise ValidationError("Invalid token payload")
-            
-            # Get user from repository
-            user = await self.user_repository.find_by_id(user_id)
-            if not user:
-                raise UserNotFoundException("User not found")
-            
-            # Convert to DTO
-            return user_entity_to_dto(user)
-            
-        except Exception as e:
-            raise ValidationError(f"Token validation failed: {str(e)}")
+        from ...domain.exceptions.domain_exceptions import ValidationError, UserNotFoundException, AccountDeactivatedException
+        from ...infrastructure.security.jwt_service import TokenType
+        from ...domain.exceptions.auth_exceptions import TokenBlacklistedException
+        
+        # Validate token using the auth service
+        token_data = await self.auth_service.validate_token(access_token, TokenType.ACCESS)
+        
+        if not token_data:
+            # Check if token is blacklisted specifically
+            is_blacklisted = await self.auth_service.is_token_blacklisted(access_token)
+            if is_blacklisted:
+                raise TokenBlacklistedException("Token has been blacklisted or revoked")
+            raise ValidationError("Invalid or expired token")
+        
+        user_id = token_data.user_id
+        if not user_id:
+            raise ValidationError("Invalid token payload")
+        
+        # Get user from repository
+        user = await self.user_repository.find_by_id(user_id)
+        if not user:
+            raise UserNotFoundException(str(user_id))
+        
+        # Check if user is active
+        if not user.is_active:
+            raise AccountDeactivatedException()
+        
+        # Convert to DTO
+        return user_entity_to_dto(user)
     
     async def _send_password_reset_email(self, user: User) -> None:
         """Send password reset email to user"""

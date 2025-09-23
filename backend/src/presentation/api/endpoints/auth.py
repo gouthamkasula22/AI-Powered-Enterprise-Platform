@@ -297,6 +297,25 @@ async def reset_password(
         )
 
 
+@router.get("/validate-token",
+             response_model=MessageResponse,
+             status_code=status.HTTP_200_OK,
+             summary="Validate auth token",
+             description="Validates if the current token is valid and active")
+async def check_token_validity(
+    current_user: UserDTO = Depends(get_current_user)
+) -> MessageResponse:
+    """
+    Validate the current auth token
+    
+    Used by frontend to check if session is still valid
+    """
+    return MessageResponse(
+        message="Token is valid",
+        success=True
+    )
+
+
 @router.post("/change-password",
              response_model=MessageResponse,
              status_code=status.HTTP_200_OK,
@@ -704,4 +723,29 @@ async def google_oauth_callback(
         error_url = f"{frontend_url}/auth/callback?error=oauth_error&error_description={str(e)}"
         return RedirectResponse(url=error_url, status_code=302)
 
+
+@router.get("/validate-token",
+           response_model=MessageResponse,
+           status_code=status.HTTP_200_OK,
+           summary="Validate authentication token",
+           description="Validates current authentication token and returns success if valid")
+async def validate_token(
+    current_user: UserDTO = Depends(get_current_user)
+) -> MessageResponse:
+    """
+    Validate the current authentication token
+    
+    This endpoint is used by the frontend to periodically check if the current token is still valid.
+    If the token has been blacklisted or is invalid, this will result in a 401 error.
+    
+    Returns:
+        MessageResponse: Success message if token is valid
+    
+    Raises:
+        HTTPException: 401 if token is invalid or blacklisted
+    """
+    return MessageResponse(
+        message="Token is valid",
+        success=True
+    )
 

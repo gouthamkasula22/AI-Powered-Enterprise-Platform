@@ -20,7 +20,8 @@ from ....infrastructure.email.email_service import SMTPEmailService
 from ....infrastructure.email.template_service import SimpleTemplateService
 from ....infrastructure.cache import get_cache_service_dep
 from ....shared.config import get_settings
-from ....domain.exceptions.domain_exceptions import ValidationError, UserNotFoundException
+from ....domain.exceptions.domain_exceptions import ValidationError, UserNotFoundException, AccountDeactivatedException
+from ....domain.exceptions.auth_exceptions import TokenBlacklistedException
 from ....domain.value_objects.role import UserRole
 import logging
 from ....shared.config import get_settings
@@ -121,7 +122,8 @@ async def get_current_user_optional(
 
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
-    auth_use_cases: AuthenticationUseCases = Depends(get_auth_use_cases)
+    auth_use_cases: AuthenticationUseCases = Depends(get_auth_use_cases),
+    user_repo = Depends(get_user_repository)
 ) -> UserDTO:
     """
     Get current user from JWT token (required)
@@ -131,6 +133,18 @@ async def get_current_user(
         token = credentials.credentials
         # Validate token and get user
         user = await auth_use_cases.get_current_user(token)
+        
+        # Check if user is deactivated
+        db_user = await user_repo.find_by_id(user.id)
+        if db_user and not db_user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "USER_DEACTIVATED",
+                    "message": "Your account has been deactivated. Please contact an administrator."
+                },
+            )
+            
         return user
     except ValidationError:
         raise HTTPException(
@@ -138,10 +152,22 @@ async def get_current_user(
             detail={"error": "INVALID_TOKEN", "message": "Invalid or expired token"},
             headers={"WWW-Authenticate": "Bearer"}
         )
+    except TokenBlacklistedException:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "TOKEN_BLACKLISTED", "message": "Token has been blacklisted or revoked"},
+            headers={"WWW-Authenticate": "Bearer"}
+        )
     except UserNotFoundException:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail={"error": "USER_NOT_FOUND", "message": "User not found"},
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+    except AccountDeactivatedException:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"error": "ACCOUNT_DISABLED", "message": "Account is disabled"},
             headers={"WWW-Authenticate": "Bearer"}
         )
 

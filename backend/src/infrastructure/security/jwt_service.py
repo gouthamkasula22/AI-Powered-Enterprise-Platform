@@ -218,18 +218,34 @@ class TokenBlacklistService:
         # Store indefinitely - we'll check token issue time against this
         return await self.cache.set(key, invalidate_time.isoformat())
     
-    async def get_user_token_invalidate_time(self, user_id: int) -> Optional[datetime]:
-        """Get the time after which all user tokens are invalid"""
-        key = f"user_token_invalidate:{user_id}"
-        timestamp_str = await self.cache.get(key)
+    async def is_user_invalidated(self, user_id: int, token_issued_at: Optional[datetime] = None) -> Optional[datetime]:
+        """
+        Check if user tokens have been invalidated globally
         
-        if timestamp_str:
-            try:
-                return datetime.fromisoformat(timestamp_str)
-            except ValueError:
+        Args:
+            user_id: The user ID to check
+            token_issued_at: Optional token issue time to compare
+            
+        Returns:
+            Invalidation timestamp if user tokens were invalidated, None otherwise
+        """
+        key = f"user_invalidate:{user_id}"
+        invalidate_data = await self.cache.get(key)
+        
+        if not invalidate_data or not isinstance(invalidate_data, dict):
+            return None
+            
+        try:
+            invalidate_time = datetime.fromisoformat(invalidate_data.get("timestamp", ""))
+            
+            # If token issue time is provided, check if token was issued before invalidation
+            if token_issued_at and token_issued_at > invalidate_time:
+                # Token was issued after invalidation, so it's still valid
                 return None
-        
-        return None
+                
+            return invalidate_time
+        except (ValueError, TypeError):
+            return None
 
 
 class SecurityUtils:
@@ -288,18 +304,64 @@ class AuthenticationService:
         if not token_data or token_data.token_type != expected_type:
             return None
         
-        # Check if token is blacklisted
+        # Check if token is blacklisted by JTI
         if token_data.jti and await self.blacklist_service.is_token_blacklisted(token_data.jti):
             return None
-        
-        # Check if all user tokens are invalidated
-        invalidate_time = await self.blacklist_service.get_user_token_invalidate_time(
-            token_data.user_id
+            
+        # Check if user has been invalidated after token was issued
+        invalidate_time = await self.blacklist_service.is_user_invalidated(
+            token_data.user_id, 
+            token_data.issued_at
         )
-        if invalidate_time and token_data.issued_at < invalidate_time:
+        
+        # If user was invalidated and token was issued before invalidation, reject it
+        if invalidate_time is not None:
             return None
         
         return token_data
+        
+    async def is_token_blacklisted(self, token: str) -> bool:
+        """Check if a token is blacklisted by extracting JTI or checking user invalidation"""
+        try:
+            # Decode token payload without validation for blacklist check
+            payload = jwt.decode(
+                token, 
+                options={"verify_signature": False, "verify_exp": False}
+            )
+            
+            # Extract basic token info
+            jti = payload.get("jti")
+            user_id = payload.get("user_id")
+            iat = payload.get("iat")
+            
+            # If no JTI or user_id, we can't check blacklist
+            if not jti or not user_id:
+                return False
+                
+            # First check by JTI - direct token blacklisting
+            if await self.blacklist_service.is_token_blacklisted(jti):
+                return True
+            
+            # Then check by user invalidation time
+            if iat:
+                try:
+                    issued_at = datetime.fromtimestamp(iat)
+                    # Use the dedicated method from blacklist service
+                    invalidate_time = await self.blacklist_service.is_user_invalidated(
+                        user_id,
+                        issued_at
+                    )
+                    
+                    # If invalidation time exists, token is blacklisted
+                    return invalidate_time is not None
+                except Exception as e:
+                    print(f"Error checking token invalidation: {e}")
+            
+            return False
+        except Exception as e:
+            print(f"Error checking token blacklist: {e}")
+            # Fail secure - treat errors as blacklisted
+            return True
     
     async def refresh_token(self, refresh_token: str) -> Optional[Dict[str, str]]:
         """Refresh access token using refresh token"""
@@ -320,20 +382,33 @@ class AuthenticationService:
     
     async def logout_token(self, token: str) -> bool:
         """Logout by blacklisting token"""
-        jti = self.jwt_service.get_token_jti(token)
-        if jti:
-            token_data = self.jwt_service.decode_token(token)
-            if token_data:
-                return await self.blacklist_service.blacklist_token(
-                    jti, 
-                    token_data.expires_at
-                )
-        
-        return False
+        try:
+            # Decode token payload without validation for blacklist check
+            payload = jwt.decode(
+                token, 
+                options={"verify_signature": False, "verify_exp": False}
+            )
+            
+            jti = payload.get("jti")
+            exp = payload.get("exp")
+            
+            if not jti or not exp:
+                return False
+                
+            expires_at = datetime.fromtimestamp(exp)
+            return await self.blacklist_service.blacklist_token(jti, expires_at)
+        except Exception as e:
+            print(f"Error in logout_token: {e}")
+            return False
     
     async def logout_all_user_tokens(self, user_id: int) -> bool:
         """Logout all tokens for a user"""
-        return await self.blacklist_service.blacklist_all_user_tokens(user_id)
+        try:
+            # Just call the blacklist method directly
+            return await self.blacklist_service.blacklist_all_user_tokens(user_id)
+        except Exception as e:
+            print(f"Error in logout_all_user_tokens: {e}")
+            return False
 
 
 # Global security services

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
@@ -8,8 +8,35 @@ const LoginPage = () => {
   const { login, isAuthenticated, isLoading } = useAuth()
   const location = useLocation()
   const [showPassword, setShowPassword] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
   
   const from = location.state?.from?.pathname || '/dashboard'
+
+  // Check for error messages in URL
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search)
+    const message = queryParams.get('message')
+    const reason = queryParams.get('reason')
+    
+    if (message) {
+      setErrorMessage(message)
+    } else if (reason) {
+      // Provide user-friendly messages for common error reasons
+      switch (reason) {
+        case 'session_revoked':
+          setErrorMessage('Your session has been revoked by an administrator')
+          break
+        case 'user_deactivated':
+          setErrorMessage('Your account has been deactivated. Please contact an administrator.')
+          break
+        case 'token_blacklisted':
+          setErrorMessage('Your session has been revoked. Please login again.')
+          break
+        default:
+          setErrorMessage('Please login to continue')
+      }
+    }
+  }, [location])
 
   const {
     register,
@@ -22,10 +49,15 @@ const LoginPage = () => {
   }
 
   const onSubmit = async (data) => {
+    // Clear any previous error messages
+    setErrorMessage('')
+    
     const result = await login(data.email, data.password)
-    if (result.success) {
-      // Navigation will be handled by the context
+    if (!result.success) {
+      // Set error message from login result
+      setErrorMessage(result.error || 'Login failed. Please try again.')
     }
+    // If successful, navigation will be handled by the context
   }
 
   if (isLoading) {
@@ -56,6 +88,13 @@ const LoginPage = () => {
             </Link>
           </p>
         </div>
+        
+        {/* Display error message from URL */}
+        {errorMessage && (
+          <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-md text-center">
+            {errorMessage}
+          </div>
+        )}
         
         <div className="mt-8">
           <OAuthButtons 

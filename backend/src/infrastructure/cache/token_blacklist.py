@@ -31,8 +31,7 @@ class TokenBlacklistService:
         self, 
         token_jti: str, 
         user_id: int,
-        expires_at: datetime,
-        reason: str = "logout"
+        expires_at: datetime
     ) -> bool:
         """
         Add a token to the blacklist
@@ -41,7 +40,6 @@ class TokenBlacklistService:
             token_jti: Token's unique identifier (jti claim)
             user_id: User ID who owns the token
             expires_at: When the token naturally expires
-            reason: Reason for blacklisting (logout, password_change, etc.)
             
         Returns:
             True if successfully blacklisted
@@ -60,8 +58,7 @@ class TokenBlacklistService:
             blacklist_data = {
                 "user_id": user_id,
                 "blacklisted_at": str(now),
-                "expires_at": str(expires_at),
-                "reason": reason
+                "expires_at": str(expires_at)
             }
             
             await self.cache.set(blacklist_key, blacklist_data, ttl)
@@ -99,11 +96,7 @@ class TokenBlacklistService:
             # Fail secure - treat errors as blacklisted
             return True
     
-    async def blacklist_all_user_tokens(
-        self, 
-        user_id: int,
-        reason: str = "security_action"
-    ) -> bool:
+    async def blacklist_all_user_tokens(self, user_id: int) -> bool:
         """
         Blacklist all tokens for a user
         
@@ -111,23 +104,35 @@ class TokenBlacklistService:
         
         Args:
             user_id: User ID whose tokens to blacklist
-            reason: Reason for mass blacklisting
             
         Returns:
             True if successful
         """
         try:
+            # 1. Get existing tracked tokens
             user_tokens_key = f"{self.user_tokens_prefix}{user_id}"
             token_jtis = await self.cache.get(user_tokens_key) or []
             
-            # Blacklist each token individually
+            # 2. Blacklist each token individually
             now = datetime.utcnow()
             default_expiry = now + timedelta(days=get_settings().jwt_refresh_token_expire_days)
             
             for token_jti in token_jtis:
-                await self.blacklist_token(token_jti, user_id, default_expiry, reason)
+                await self.blacklist_token(token_jti, user_id, default_expiry)
             
-            # Clear the user tokens list
+            # 3. Set a user-wide blacklist flag with timestamp
+            # This will invalidate ALL tokens issued before this time, even those we don't track
+            user_invalidate_key = f"user_invalidate:{user_id}"
+            invalidate_data = {
+                "timestamp": now.isoformat(),
+                "reason": "admin_revocation"
+            }
+            
+            # Keep this invalidation data for the maximum token lifetime
+            max_ttl = timedelta(days=get_settings().jwt_refresh_token_expire_days + 1)
+            await self.cache.set(user_invalidate_key, invalidate_data, max_ttl)
+            
+            # 4. Clear the user tokens list since we've blacklisted them all
             await self.cache.delete(user_tokens_key)
             
             return True
@@ -136,22 +141,39 @@ class TokenBlacklistService:
             print(f"Error blacklisting all tokens for user {user_id}: {e}")
             return False
     
-    async def get_blacklisted_tokens_count(self, user_id: int) -> int:
+    async def is_user_invalidated(self, user_id: int, token_issued_at: Optional[datetime] = None) -> Optional[datetime]:
         """
-        Get count of blacklisted tokens for a user
+        Check if all user tokens have been invalidated
         
         Args:
-            user_id: User ID
+            user_id: User ID to check
+            token_issued_at: Optional token issue time to compare against
             
         Returns:
-            Number of blacklisted tokens
+            Invalidation timestamp if user was invalidated, None otherwise
+            If token_issued_at is provided, returns timestamp only if token was issued before invalidation
         """
         try:
-            user_tokens_key = f"{self.user_tokens_prefix}{user_id}"
-            token_jtis = await self.cache.get(user_tokens_key) or []
-            return len(token_jtis)
-        except Exception:
-            return 0
+            user_invalidate_key = f"user_invalidate:{user_id}"
+            invalidate_data = await self.cache.get(user_invalidate_key)
+            
+            if not invalidate_data or not isinstance(invalidate_data, dict):
+                return None
+                
+            try:
+                invalidate_time = datetime.fromisoformat(invalidate_data.get("timestamp", ""))
+                
+                # If token issue time is provided, check if token was issued before invalidation
+                if token_issued_at and token_issued_at > invalidate_time:
+                    # Token was issued after invalidation, so it's still valid
+                    return None
+                    
+                return invalidate_time
+            except (ValueError, TypeError):
+                return None
+        except Exception as e:
+            print(f"Error checking user invalidation for user {user_id}: {e}")
+            return None
     
     async def cleanup_expired_blacklist_entries(self) -> int:
         """

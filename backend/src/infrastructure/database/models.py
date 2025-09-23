@@ -189,6 +189,12 @@ class UserModel(BaseModel):
         doc="Last successful login timestamp"
     )
     
+    last_logout: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        doc="Last logout timestamp (used for session revocation tracking)"
+    )
+    
     timezone: Mapped[Optional[str]] = mapped_column(
         String(50),
         nullable=True,

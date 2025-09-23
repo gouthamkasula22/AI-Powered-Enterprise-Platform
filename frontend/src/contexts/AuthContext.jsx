@@ -24,11 +24,41 @@ axios.interceptors.request.use(
 axios.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response?.status === 401) {
+    const originalRequest = error.config
+    
+    // Handle auth errors (401 Unauthorized, 403 Forbidden with specific error codes)
+    if (
+      error.response && 
+      (error.response.status === 401 || 
+       (error.response.status === 403 && 
+        (error.response.data?.detail?.error === "TOKEN_BLACKLISTED" || 
+         error.response.data?.detail?.error === "USER_DEACTIVATED" ||
+         error.response.data?.detail?.error === "TOKEN_INVALID")))
+    ) {
+      console.log("Session expired or revoked. Logging out...");
+      
+      // Get the error message
+      const errorCode = error.response.data?.detail?.error || 'AUTHENTICATION_ERROR'
+      const message = error.response.data?.detail?.message || 
+                     "Your session has expired or been revoked. Please login again.";
+      
+      // Force logout
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('user')
-      window.location.href = '/login'
+      
+      // Show user-friendly message
+      if (errorCode === 'USER_DEACTIVATED') {
+        toast.error('Your account has been deactivated by an administrator')
+      } else if (errorCode === 'TOKEN_BLACKLISTED') {
+        toast.error('Your session has been revoked by an administrator')
+      } else {
+        toast.error('Session expired. Please login again.')
+      }
+      
+      // Redirect to login with appropriate message
+      window.location.href = `/login?reason=${errorCode.toLowerCase()}&message=${encodeURIComponent(message)}`
+      return Promise.reject(error)
     }
     return Promise.reject(error)
   }
@@ -101,6 +131,9 @@ export const AuthProvider = ({ children }) => {
           const parsedUser = JSON.parse(userData)
           setUser(parsedUser)
           setIsAuthenticated(true)
+          
+          // Validate token immediately to check if it's still valid
+          validateToken()
         } catch (error) {
           console.error('Error parsing user data:', error)
           logout()
@@ -110,7 +143,53 @@ export const AuthProvider = ({ children }) => {
     }
 
     initializeAuth()
+    
+    // Set up periodic token validation every 5 minutes
+    const tokenValidationInterval = setInterval(() => {
+      validateToken()
+    }, 5 * 60 * 1000) // 5 minutes
+    
+    return () => {
+      clearInterval(tokenValidationInterval)
+    }
   }, [])
+  
+  // Validate token to check if it's still valid or has been blacklisted
+  const validateToken = async () => {
+    const token = localStorage.getItem('access_token')
+    if (!token || !isAuthenticated) return
+    
+    try {
+      // Call the dedicated token validation endpoint
+      await axios.get('/api/v1/auth/validate-token')
+      console.log('Token validation successful')
+    } catch (error) {
+      // If we get a specific error code, handle it directly here
+      if (error.response?.status === 403 && 
+          (error.response?.data?.detail?.error === "USER_DEACTIVATED" || 
+           error.response?.data?.detail?.error === "TOKEN_BLACKLISTED")) {
+        
+        // Get the error message
+        const message = error.response?.data?.detail?.message || 
+                       "Your session has been revoked. Please login again.";
+                       
+        // Force logout
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        localStorage.removeItem('user')
+        setUser(null)
+        setIsAuthenticated(false)
+        
+        // Show notification
+        toast.error(message)
+        
+        // Redirect to login
+        window.location.href = `/login?message=${encodeURIComponent(message)}`
+      }
+      // Other errors will be handled by the axios interceptor
+      console.error('Token validation failed:', error)
+    }
+  }
 
   const login = async (emailOrData, password, showToast = true) => {
     try {

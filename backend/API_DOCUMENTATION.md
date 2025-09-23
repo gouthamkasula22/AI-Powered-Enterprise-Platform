@@ -17,6 +17,8 @@ The backend authentication system is now complete and fully functional with clea
 | `/api/v1/auth/forgot-password` | POST | ⚠️ **Email Service** | Password reset request |
 | `/api/v1/auth/reset-password` | POST | ⚠️ **Untested** | Password reset confirmation |
 | `/api/v1/auth/verify-email` | POST | ✅ **Working** | Email verification |
+| `/api/v1/admin/users/toggle-status` | POST | ✅ **Working** | Activate/deactivate user & revoke sessions |
+| `/api/v1/admin/users/{user_id}/sessions` | DELETE | ✅ **Working** | Revoke all user sessions |
 
 ## 🔐 **Authentication Flow**
 
@@ -230,6 +232,58 @@ if (response.status === 401) {
   const newToken = await refreshToken();
   // Retry original request with new token
 }
+```
+
+### **Admin User Management**
+
+#### **Deactivate/Activate User**
+```javascript
+// Toggle user active status
+const toggleUserStatus = async (userId, isActive) => {
+  const response = await fetch('/api/v1/admin/users/toggle-status', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      user_id: userId,
+      is_active: isActive
+    })
+  });
+  
+  if (response.ok) {
+    // Update UI to reflect new status
+    // Button text should change from "Deactivate" to "Activate" or vice versa
+    const result = await response.json();
+    console.log(result.message); // Will include "and all sessions revoked" if deactivating
+  }
+};
+```
+
+When a user is deactivated, the system now automatically revokes all their active sessions as a security measure. This means:
+1. All tokens for the user are blacklisted
+2. The user is logged out from all devices
+3. The user's `last_logout` timestamp is updated
+4. The user will need to re-authenticate if reactivated
+
+#### **Revoke User Sessions**
+```javascript
+// Revoke all sessions for a user
+const revokeUserSessions = async (userId) => {
+  const response = await fetch(`/api/v1/admin/users/${userId}/sessions`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`
+    }
+  });
+  
+  if (response.ok) {
+    // Show success notification
+    const result = await response.json();
+    console.log(result.message); // "All sessions revoked for user: user@example.com"
+  }
+};
 ```
 
 ### **Server Configuration**
