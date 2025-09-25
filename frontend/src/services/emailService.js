@@ -3,18 +3,18 @@ import apiClient from './api'
 export const emailService = {
   // Email verification
   async verifyEmail(token) {
-    const response = await apiClient.post('/api/v1/auth/verify-email', { token })
+    const response = await apiClient.post('/api/auth/verify-email', { token })
     return response.data
   },
 
   async resendVerificationEmail(email) {
-    const response = await apiClient.post('/api/v1/auth/resend-verification', { email })
+    const response = await apiClient.post('/api/auth/resend-verification', { email })
     return response.data
   },
 
   // Password reset
   async requestPasswordReset(email) {
-    const response = await apiClient.post('/api/v1/auth/forgot-password', { email })
+    const response = await apiClient.post('/api/auth/forgot-password', { email })
     return response.data
   },
 
@@ -26,7 +26,7 @@ export const emailService = {
     }
     console.log('Request data:', { ...requestData, new_password: '***' })
     
-    const response = await apiClient.post('/api/v1/auth/reset-password', requestData)
+    const response = await apiClient.post('/api/auth/reset-password', requestData)
     return response.data
   }
 }

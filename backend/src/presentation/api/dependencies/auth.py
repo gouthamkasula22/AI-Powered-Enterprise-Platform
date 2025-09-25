@@ -42,10 +42,10 @@ def get_jwt_service() -> JWTService:
     """Get JWT service instance with configuration"""
     settings = get_settings()
     return JWTService(
-        secret_key=settings.jwt_secret_key,
-        algorithm=settings.jwt_algorithm,
-        access_token_expire_minutes=settings.jwt_access_token_expire_minutes,
-        refresh_token_expire_days=settings.jwt_refresh_token_expire_days
+        secret_key=settings.auth_secret_key,
+        algorithm=settings.auth_algorithm,
+        access_token_expire_minutes=settings.auth_access_token_expire_minutes,
+        refresh_token_expire_days=settings.auth_refresh_token_expire_days
     )
 
 

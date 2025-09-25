@@ -19,6 +19,15 @@ from ..dto import (
 from ..use_cases import AuthenticationUseCases, UserManagementUseCases
 from ...domain.exceptions import DomainException
 
+# Import chat service
+from .enhanced_chat_service import EnhancedChatService
+
+# Include EnhancedChatService in __all__
+__all__ = [
+    "UserService", 
+    "EnhancedChatService"
+]
+
 
 class AuthenticationService:
     """
@@ -218,7 +227,7 @@ class UserService:
             # Create UserListQueryDTO from pagination and filter parameters
             query = UserListQueryDTO(
                 page=pagination.page,
-                limit=pagination.limit,
+                limit=pagination.size,
                 search=search,
                 is_active=is_active,
                 is_verified=is_verified
@@ -231,7 +240,7 @@ class UserService:
                 users=[],
                 total=0,
                 page=pagination.page,
-                limit=pagination.limit,
+                limit=pagination.size,
                 pages=0
             )
     

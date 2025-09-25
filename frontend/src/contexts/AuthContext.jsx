@@ -8,6 +8,9 @@ const AuthContext = createContext()
 axios.defaults.baseURL = 'http://localhost:8000'
 axios.defaults.headers.common['Content-Type'] = 'application/json'
 
+// API version handling
+const apiVersion = ''  // Remove v1 to match backend routes
+
 // Request interceptor to add auth token
 axios.interceptors.request.use(
   (config) => {
@@ -161,7 +164,7 @@ export const AuthProvider = ({ children }) => {
     
     try {
       // Call the dedicated token validation endpoint
-      await axios.get('/api/v1/auth/validate-token')
+      await axios.get('/api/auth/validate-token')
       console.log('Token validation successful')
     } catch (error) {
       // If we get a specific error code, handle it directly here
@@ -211,7 +214,7 @@ export const AuthProvider = ({ children }) => {
       }
       
       // Handle regular email/password login
-      const response = await axios.post('/api/v1/auth/login', {
+      const response = await axios.post('/api/auth/login', {
         email: emailOrData,
         password
       })
@@ -244,7 +247,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoading(true)
       
-      const response = await axios.post('/api/v1/auth/register', {
+      const response = await axios.post('/api/auth/register', {
         email: userData.email,
         password: userData.password
       })
@@ -274,7 +277,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoading(true)
       
-      const response = await axios.post('/api/v1/auth/verify-email', {
+      const response = await axios.post('/api/auth/verify-email', {
         token
       })
       
@@ -299,7 +302,7 @@ export const AuthProvider = ({ children }) => {
 
   const refreshUserData = useCallback(async () => {
     try {
-      const response = await axios.get('/api/v1/auth/me')
+      const response = await axios.get('/api/users/me')
       const userData = response.data
       
       // Extract user data from the response (API returns {user: UserResponse})
@@ -321,7 +324,7 @@ export const AuthProvider = ({ children }) => {
     try {
       setIsLoading(true)
       
-      const response = await axios.post('/api/v1/auth/resend-verification', {
+      const response = await axios.post('/api/auth/resend-verification', {
         email
       })
       
@@ -342,7 +345,7 @@ export const AuthProvider = ({ children }) => {
     setIsLoading(true)
     try {
       console.log('Updating profile with data:', profileData)
-      const response = await axios.put('/api/v1/auth/profile', profileData)
+      const response = await axios.put('/api/auth/profile', profileData)
       
       // Profile update returns UserResponse directly (not wrapped in { user: ... })
       const updatedUser = response.data

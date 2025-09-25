@@ -25,7 +25,7 @@ const SystemSettings = () => {
     try {
       setIsLoading(true)
       // Mock API call - replace with actual implementation
-      // const response = await axios.get('/api/v1/admin/system/settings')
+      // const response = await axios.get('/api/admin/system/settings')
       // setSettings(response.data)
     } catch (error) {
       console.error('Failed to fetch system settings:', error)
@@ -39,7 +39,7 @@ const SystemSettings = () => {
     try {
       setIsSaving(true)
       // Mock API call - replace with actual implementation
-      // await axios.put('/api/v1/admin/system/settings', settings)
+      // await axios.put('/api/admin/system/settings', settings)
       toast.success('System settings updated successfully')
     } catch (error) {
       console.error('Failed to save system settings:', error)

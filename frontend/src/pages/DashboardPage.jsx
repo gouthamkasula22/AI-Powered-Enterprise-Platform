@@ -1,35 +1,128 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { RoleGuard } from '../components/ProtectedRoute'
-import NotificationCenter from '../components/common/NotificationCenter'
 import EmailVerificationStatus from '../components/auth/EmailVerificationStatus'
 import ProfileView from '../components/profile/ProfileView'
-import ChangePassword from '../components/security/ChangePassword'
+import DashboardChatContainer from '../components/chat/DashboardChatContainer'
+
+// Simple NotificationCenter component
+const NotificationCenter = () => {
+  return (
+    <div className="relative">
+      <button className="text-gray-500 hover:text-gray-700">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+      </button>
+    </div>
+  );
+};
+
+// Simple RoleGuard component
+const RoleGuard = ({ children, requireRole }) => {
+  const { user } = useAuth();
+  const userRole = user?.role || 'user';
+  
+  // Simple role hierarchy
+  const roles = {
+    'superadmin': 3,
+    'admin': 2,
+    'user': 1
+  };
+  
+  if (roles[userRole] >= roles[requireRole]) {
+    return children;
+  }
+  
+  return null;
+};
+
+// Simple ChangePassword component
+const ChangePassword = () => {
+  return (
+    <div className="space-y-4">
+      <div>
+        <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700">
+          Current Password
+        </label>
+        <input
+          type="password"
+          id="currentPassword"
+          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+        />
+      </div>
+      
+      <div>
+        <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700">
+          New Password
+        </label>
+        <input
+          type="password"
+          id="newPassword"
+          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+        />
+      </div>
+      
+      <div>
+        <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+          Confirm New Password
+        </label>
+        <input
+          type="password"
+          id="confirmPassword"
+          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+        />
+      </div>
+      
+      <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium transition-colors">
+        Change Password
+      </button>
+    </div>
+  );
+};
 
 const DashboardPage = () => {
-  const { user, logout, refreshUserData, getUserRole, isAdmin } = useAuth()
-  const [activeTab, setActiveTab] = useState('overview')
+  const { user, refreshUserData, logout } = useAuth();
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('overview');
 
   // Refresh user data when dashboard loads to ensure we have latest verification status
   useEffect(() => {
     const refreshData = async () => {
-      await refreshUserData()
+      await refreshUserData();
     }
-    refreshData()
-  }, [refreshUserData]) // Include refreshUserData in dependencies
-
-  const handleLogout = () => {
-    logout()
-  }
-
-  const handleProfileUpdate = (updatedUser) => {
-    // User data is already updated in AuthContext, no need to refresh
-    // The component will automatically re-render with the updated user data
-  }
+    refreshData();
+  }, [refreshUserData]); // Include refreshUserData in dependencies
+  
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
+  
+  // Get user role
+  const getUserRole = () => {
+    return user?.role || 'user';
+  };
+  
+  // Handle profile update
+  const handleProfileUpdate = async (profileData) => {
+    try {
+      // Refresh user data after profile update
+      await refreshUserData();
+      // Show success message or perform additional actions
+    } catch (error) {
+      console.error('Profile update error:', error);
+    }
+  };
 
   const tabs = [
     { id: 'overview', name: 'Overview', icon: '📊' },
+    { id: 'chat', name: 'Chat Assistant', icon: '💬' },
     { id: 'profile', name: 'Profile', icon: '👤' },
     { id: 'security', name: 'Security', icon: '🔒' },
     { id: 'settings', name: 'Settings', icon: '⚙️' }
@@ -156,6 +249,22 @@ const DashboardPage = () => {
                           <p className="text-sm text-gray-600 mt-1">Change password and security options</p>
                         </button>
                         
+                        <button 
+                          onClick={() => setActiveTab('chat')}
+                          className="p-4 text-left border border-purple-200 rounded-lg hover:bg-purple-50 transition-colors"
+                        >
+                          <h4 className="font-medium text-purple-900">AI Assistant</h4>
+                          <p className="text-sm text-purple-600 mt-1">Chat with AI assistant</p>
+                        </button>
+                        
+                        <Link
+                          to="/chat/new"
+                          className="p-4 text-left border border-orange-200 rounded-lg hover:bg-orange-50 transition-colors"
+                        >
+                          <h4 className="font-medium text-orange-900">Claude-Style Chat</h4>
+                          <p className="text-sm text-orange-600 mt-1">Try our new Claude-style interface</p>
+                        </Link>
+                        
                         <RoleGuard requireRole="admin">
                           <Link
                             to="/admin"
@@ -177,6 +286,19 @@ const DashboardPage = () => {
                         </RoleGuard>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'chat' && (
+                <div className="h-[calc(100vh-12rem)]">
+                  <div className="text-center py-10">
+                    <h3 className="text-2xl font-medium mb-4">Chat Assistant</h3>
+                    <p className="text-gray-600 mb-6">Experience our new Claude-style chat interface</p>
+                    <Link to="/chat/new" className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
+                      <span className="material-icons-outlined text-xl mr-2">chat</span>
+                      Open Chat Assistant
+                    </Link>
                   </div>
                 </div>
               )}

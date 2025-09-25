@@ -28,6 +28,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 try:
     from src.shared.config import get_settings
     from src.infrastructure.database.config import Base
+    # Import all models to ensure they're in metadata
+    from src.infrastructure.database.models import *
     settings = get_settings()
 except ImportError as import_error:
     # Handle import errors gracefully during initial setup

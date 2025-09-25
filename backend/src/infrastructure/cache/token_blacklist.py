@@ -69,7 +69,7 @@ class TokenBlacklistService:
             if token_jti not in user_tokens:
                 user_tokens.append(token_jti)
                 # Set TTL to longest token expiration for this user
-                max_ttl = timedelta(days=get_settings().jwt_refresh_token_expire_days)
+                max_ttl = timedelta(days=get_settings().auth_refresh_token_expire_days)
                 await self.cache.set(user_tokens_key, user_tokens, max_ttl)
             
             return True
@@ -115,7 +115,7 @@ class TokenBlacklistService:
             
             # 2. Blacklist each token individually
             now = datetime.utcnow()
-            default_expiry = now + timedelta(days=get_settings().jwt_refresh_token_expire_days)
+            default_expiry = now + timedelta(days=get_settings().auth_refresh_token_expire_days)
             
             for token_jti in token_jtis:
                 await self.blacklist_token(token_jti, user_id, default_expiry)
@@ -129,7 +129,7 @@ class TokenBlacklistService:
             }
             
             # Keep this invalidation data for the maximum token lifetime
-            max_ttl = timedelta(days=get_settings().jwt_refresh_token_expire_days + 1)
+            max_ttl = timedelta(days=get_settings().auth_refresh_token_expire_days + 1)
             await self.cache.set(user_invalidate_key, invalidate_data, max_ttl)
             
             # 4. Clear the user tokens list since we've blacklisted them all

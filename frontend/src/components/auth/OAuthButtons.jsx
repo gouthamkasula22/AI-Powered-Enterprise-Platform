@@ -15,7 +15,7 @@ const GoogleLoginButton = ({
         const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
         
         // Use the backend callback URL that Google will redirect to
-        const redirectUri = `${backendUrl}/api/v1/auth/oauth/google/callback`;
+        const redirectUri = `${backendUrl}/api/auth/oauth/google/callback`;
         
         // Store the current page URL to redirect back after auth
         const returnUrl = window.location.pathname;
@@ -23,7 +23,7 @@ const GoogleLoginButton = ({
             localStorage.setItem('oauth_return_url', returnUrl);
         }
         
-        window.location.href = `${backendUrl}/api/v1/auth/oauth/google/login?redirect_uri=${encodeURIComponent(redirectUri)}`;
+        window.location.href = `${backendUrl}/api/auth/oauth/google/login?redirect_uri=${encodeURIComponent(redirectUri)}`;
     };
 
     return (
@@ -67,7 +67,7 @@ const GitHubLoginButton = ({
             localStorage.setItem('oauth_return_url', returnUrl);
         }
         
-        window.location.href = `${backendUrl}/api/v1/auth/oauth/github/login?redirect_uri=${encodeURIComponent(redirectUri)}`;
+        window.location.href = `${backendUrl}/api/auth/oauth/github/login?redirect_uri=${encodeURIComponent(redirectUri)}`;
     };
 
     return (

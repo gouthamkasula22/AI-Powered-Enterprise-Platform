@@ -25,9 +25,9 @@ const AdminDashboard = () => {
       const token = localStorage.getItem('access_token')
       console.log('🔍 Attempting to fetch stats...')
       console.log('Token exists:', !!token)
-      console.log('API URL:', `${import.meta.env.VITE_API_URL}/api/v1/admin/users/stats`)
+      console.log('API URL:', `${import.meta.env.VITE_API_URL}/api/admin/users/stats`)
       const response = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/v1/admin/users/stats`,
+        `${import.meta.env.VITE_API_URL}/api/admin/users/stats`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,

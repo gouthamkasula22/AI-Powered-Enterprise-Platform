@@ -6,9 +6,9 @@ These models match the existing database schema to preserve data.
 """
 
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from sqlalchemy import String, Text, Boolean, DateTime, Index
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .config import BaseModel
 
@@ -218,3 +218,8 @@ class UserModel(BaseModel):
     
     def __repr__(self) -> str:
         return f"<UserModel(id={self.id}, email='{self.email}', active={self.is_active})>"
+        
+    # Relationships with chat models
+    chat_threads = relationship("ChatThread", back_populates="user", cascade="all, delete-orphan")
+    chat_messages = relationship("ChatMessage", back_populates="user", cascade="all, delete-orphan")
+    chat_documents = relationship("Document", back_populates="user", cascade="all, delete-orphan")

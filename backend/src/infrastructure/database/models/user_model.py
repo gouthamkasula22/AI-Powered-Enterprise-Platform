@@ -6,13 +6,12 @@ These models handle the persistence layer for our domain objects.
 """
 
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Index
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.sql import func
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from typing import Optional
 
-Base = declarative_base()
+from ..config import Base
 
 
 class UserModel(Base):
@@ -69,6 +68,9 @@ class UserModel(Base):
     created_at = Column(DateTime, default=func.now(), nullable=False)
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
     last_login = Column(DateTime, nullable=True)
+    
+    # Relationships
+    chat_isolation = relationship("UserChatIsolation", back_populates="user", uselist=False)
     
     # Indexes for performance
     __table_args__ = (

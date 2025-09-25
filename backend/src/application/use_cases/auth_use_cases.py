@@ -138,7 +138,16 @@ class AuthenticationUseCases:
             raise AccountDeactivatedException()
         
         # Verify password
-        if not user.password_hash or not Password.verify(user.password_hash, request.password):
+        password_valid = False
+        if user.password_hash:
+            password_valid = Password.verify(user.password_hash, request.password)
+            
+        # Add detailed logging for debugging
+        print(f"Login attempt for user: {user.email.value}")
+        print(f"Password hash exists: {bool(user.password_hash)}")
+        print(f"Password valid: {password_valid}")
+        
+        if not user.password_hash or not password_valid:
             raise InvalidCredentialsException()
         
         # Update last login

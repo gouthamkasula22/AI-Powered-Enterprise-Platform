@@ -549,7 +549,7 @@ from ..dependencies.auth import get_user_repository, get_auth_service
 
 
 @router.get("/oauth/google/login")
-async def google_oauth_login(redirect_uri: str = "http://localhost:8000/api/v1/auth/oauth/google/callback"):
+async def google_oauth_login(redirect_uri: str = "http://localhost:8000/api/auth/oauth/google/callback"):
     """
     Start Google OAuth flow
     """
@@ -584,7 +584,7 @@ async def google_oauth_callback(
     
     try:
         oauth_service = SimpleGoogleOAuth()
-        redirect_uri = "http://localhost:8000/api/v1/auth/oauth/google/callback"
+        redirect_uri = "http://localhost:8000/api/auth/oauth/google/callback"
         
         # Exchange code for access token
         access_token = await oauth_service.exchange_code_for_token(code, redirect_uri)

@@ -48,7 +48,7 @@ const UserManagement = () => {
       const token = localStorage.getItem('access_token')
 
       const response = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/v1/admin/users/list?${params}`,
+        `${import.meta.env.VITE_API_URL}/api/admin/users/list?${params}`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -101,7 +101,7 @@ const UserManagement = () => {
     try {
       const token = localStorage.getItem('access_token')
       await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/v1/admin/users/update-role`,
+        `${import.meta.env.VITE_API_URL}/api/admin/users/update-role`,
         {
           user_id: userId,
           new_role: newRole
@@ -127,7 +127,7 @@ const UserManagement = () => {
     try {
       const token = localStorage.getItem('access_token')
       await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/v1/admin/users/toggle-status`,
+        `${import.meta.env.VITE_API_URL}/api/admin/users/toggle-status`,
         {
           user_id: userId,
           is_active: isActive
@@ -153,7 +153,7 @@ const UserManagement = () => {
     try {
       const token = localStorage.getItem('access_token')
       await axios.delete(
-        `${import.meta.env.VITE_API_URL}/api/v1/admin/users/${userId}/sessions`,
+        `${import.meta.env.VITE_API_URL}/api/admin/users/${userId}/sessions`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,

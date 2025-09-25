@@ -4,18 +4,56 @@ Database Models Module
 Contains SQLAlchemy models for the database layer.
 """
 
+# Import Base first
+from ..config import Base
+
 from .user_model import (
-    Base,
     UserModel,
     OAuthAccountModel,
     SessionModel,
     AuditLogModel
 )
 
+from .chat_models import (
+    ChatThread,
+    ChatMessage,
+    Document,
+    DocumentChunk
+)
+
+from .message_processing_models import (
+    MessageReaction,
+    MessageEdit, 
+    MessageVersion,
+    AIProcessingStep,
+    MessageSearchIndex
+)
+
+from .chat_auth_models import (
+    ChatUserRole,
+    ThreadAccess,
+    ChatAuditLog,
+    UserChatIsolation,
+    ChatRateLimit
+)
+
 __all__ = [
-    "Base",
+    "Base",  # Add Base to exports
     "UserModel", 
     "OAuthAccountModel",
     "SessionModel",
-    "AuditLogModel"
+    "AuditLogModel",
+    "ChatThread",
+    "ChatMessage",
+    "Document",
+    "MessageReaction",
+    "MessageEdit",
+    "MessageVersion", 
+    "AIProcessingStep",
+    "MessageSearchIndex",
+    "ChatUserRole",
+    "ThreadAccess", 
+    "ChatAuditLog",
+    "UserChatIsolation",
+    "ChatRateLimit"
 ]

@@ -18,6 +18,8 @@ from .api.endpoints.auth import router as auth_router
 from .api.endpoints.admin import router as admin_router
 from .api.endpoints.admin_users import router as admin_users_router
 from .api.endpoints.users import router as users_router  # Temporarily disabled due to syntax errors
+from .api.chat_router import router as chat_router  # Enhanced RAG-powered Chat API router
+from .api.routes.document_routes import router as document_router  # Document upload API
 
 # Import configuration
 from ..shared.config import get_settings
@@ -180,14 +182,14 @@ app.add_middleware(
 )
 
 # Include routers with API versioning
-settings = get_settings()
-
 app.include_router(health_router, prefix="/health", tags=["Health"])
-app.include_router(health_router, prefix=f"{settings.api_prefix}/health", tags=["Health"])
-app.include_router(auth_router, prefix=f"{settings.api_prefix}/auth", tags=["Authentication"])
-app.include_router(admin_router, prefix=f"{settings.api_prefix}/admin", tags=["Admin"])
-app.include_router(admin_users_router, prefix=f"{settings.api_prefix}", tags=["Admin User Management"])
-app.include_router(users_router, prefix=f"{settings.api_prefix}/users", tags=["User Management"])  # Temporarily disabled
+app.include_router(health_router, prefix="/api/health", tags=["Health"])
+app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
+app.include_router(admin_router, prefix="/api/admin", tags=["Admin"])
+app.include_router(admin_users_router, prefix="/api", tags=["Admin User Management"])
+app.include_router(users_router, prefix="/api/users", tags=["User Management"])  # Temporarily disabled
+app.include_router(chat_router, prefix="/api", tags=["Chat"])  # Chat API
+app.include_router(document_router, tags=["Documents"])  # Document upload API (Admin only)
 
 # Root endpoint
 @app.get("/", tags=["Root"])
