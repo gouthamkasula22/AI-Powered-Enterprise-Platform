@@ -33,6 +33,11 @@ from ...infrastructure.database.models import ChatThread, ChatMessage, UserModel
 from ...infrastructure.database.models.chat_models import Document
 from ...presentation.api.dependencies.auth import get_current_active_user
 
+# LangChain integration imports
+from ...infrastructure.langchain.simple_langchain_service import SimpleLangChainRAGService
+from ...infrastructure.document.vector_store import VectorStore
+from ...infrastructure.document.document_processor import DocumentProcessor
+
 
 # Pydantic Models for API
 class CreateConversationRequest(BaseModel):
@@ -129,6 +134,34 @@ async def get_chat_services(
         prompt_manager,
         llm_service
     )
+
+
+async def get_langchain_service(
+    session: AsyncSession = Depends(get_db_session)
+) -> SimpleLangChainRAGService:
+    """
+    Get LangChain RAG service with all custom components wrapped for compliance.
+    
+    This dependency provides a LangChain-compatible interface while using
+    our optimized custom components underneath for maximum performance.
+    """
+    # Initialize our custom components (keep the performance)
+    vector_store = VectorStore()
+    llm_service = LLMService()
+    context_manager = ContextManager()
+    document_processor = DocumentProcessor(db_session=session)
+    
+    # Create LangChain service that wraps our custom components
+    langchain_service = SimpleLangChainRAGService(
+        vector_store=vector_store,
+        llm_service=llm_service,
+        context_manager=context_manager,
+        document_processor=document_processor,
+        memory_k=5,  # Conversation memory window
+        retriever_k=5  # Document retrieval count
+    )
+    
+    return langchain_service
 
 
 # WebSocket Connection Manager
@@ -641,6 +674,112 @@ async def send_message(
         raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
 
 
+@router.post("/conversations/{conversation_id}/messages/langchain", response_model=MessageResponse)
+async def send_message_langchain(
+    conversation_id: int,
+    request: SendMessageRequest,
+    user_id: int = Depends(get_current_user_id),
+    langchain_service: SimpleLangChainRAGService = Depends(get_langchain_service),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """
+    Send a message using LangChain RAG pipeline.
+    
+    This endpoint provides the same functionality as the standard message endpoint
+    but uses LangChain framework for RAG processing while maintaining the same
+    performance through our custom component wrappers.
+    """
+    try:
+        logger.info(f"🔗 LangChain endpoint: Processing message for conversation {conversation_id}")
+        
+        # Create conversation manager
+        conversation_manager = ConversationManager(session)
+        
+        # Verify user has access to conversation
+        conversation = await conversation_manager.get_conversation(conversation_id, user_id)
+        if not conversation:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        
+        # Add user message to conversation
+        user_message = await conversation_manager.add_message(
+            conversation_id=conversation_id,
+            user_id=user_id,
+            content=request.content,
+            role="user",
+            message_type=request.message_type or "text"
+        )
+        logger.info(f"✅ User message saved: ID {user_message.id}")
+        
+        # Generate AI response using LangChain service
+        start_time = datetime.now()
+        
+        logger.info("🔗 Using LangChain RAG pipeline for response generation")
+        
+        # Use LangChain service (which internally uses our custom components)
+        langchain_response = await langchain_service.chat(
+            message=request.content,
+            thread_id=conversation_id,
+            session_id=f"user_{user_id}_conv_{conversation_id}"
+        )
+        
+        processing_time = (datetime.now() - start_time).total_seconds() * 1000
+        
+        logger.info(f"✅ LangChain response generated in {processing_time:.2f}ms")
+        logger.info(f"📊 LangChain metadata: {langchain_response.get('metadata', {})}")
+        
+        # Add AI message to conversation
+        ai_message = await conversation_manager.add_message(
+            conversation_id=conversation_id,
+            user_id=user_id,  # Use current user ID for AI messages
+            content=langchain_response["answer"],
+            role="assistant",
+            message_type="text",
+            processing_time_ms=int(processing_time),
+            model_used="langchain_rag_pipeline"
+        )
+        logger.info(f"✅ AI message saved: ID {ai_message.id}")
+        
+        # Send WebSocket notification
+        await connection_manager.send_personal_message(
+            json.dumps({
+                "type": "new_message",
+                "conversation_id": conversation_id,
+                "message": {
+                    "id": ai_message.id,
+                    "content": ai_message.content,
+                    "role": ai_message.role,
+                    "created_at": ai_message.created_at.isoformat()
+                },
+                "langchain_metadata": {
+                    "framework": "langchain_wrapper",
+                    "documents_used": len(langchain_response.get("source_documents", [])),
+                    "context_chunks": len(langchain_response.get("context_used", [])),
+                    "chain_type": langchain_response.get("chain_type", "custom_rag_chain")
+                }
+            }),
+            user_id
+        )
+        
+        return MessageResponse(
+            id=ai_message.id,
+            conversation_id=ai_message.thread_id,
+            user_id=ai_message.user_id,
+            content=ai_message.content,
+            message_type=ai_message.message_type,
+            role=ai_message.role,
+            created_at=ai_message.created_at,
+            is_ai_response=True,
+            processing_time_ms=ai_message.processing_time_ms,
+            model_used=ai_message.ai_model
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"❌ LangChain endpoint error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"LangChain processing failed: {str(e)}")
+
+
 # Streaming Endpoints
 @router.post("/conversations/{conversation_id}/messages/stream")
 async def stream_message(
@@ -830,3 +969,38 @@ async def chat_health_check():
             "rag_system": "operational"
         }
     }
+
+
+@router.get("/health/langchain")
+async def langchain_health_check(
+    langchain_service: SimpleLangChainRAGService = Depends(get_langchain_service)
+):
+    """Health check endpoint for LangChain integration."""
+    try:
+        # Get LangChain system information
+        chain_info = langchain_service.get_chain_info()
+        
+        return {
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "framework": "langchain_wrapper",
+            "langchain_integration": chain_info,
+            "custom_components": {
+                component: str(type(comp).__name__)
+                for component, comp in langchain_service.get_custom_components().items()
+            },
+            "services": {
+                "langchain_rag_pipeline": "operational",
+                "custom_vector_store": "operational",
+                "custom_llm_service": "operational",
+                "custom_context_manager": "operational",
+                "custom_document_processor": "operational"
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "unhealthy",
+            "timestamp": datetime.now().isoformat(),
+            "error": str(e),
+            "framework": "langchain_wrapper"
+        }

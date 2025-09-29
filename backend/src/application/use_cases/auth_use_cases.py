@@ -143,7 +143,7 @@ class AuthenticationUseCases:
             password_valid = Password.verify(user.password_hash, request.password)
             
         # Add detailed logging for debugging
-        print(f"Login attempt for user: {user.email.value}")
+        print(f"Login attempt for user: {user.email.value if user.email else 'unknown'}")
         print(f"Password hash exists: {bool(user.password_hash)}")
         print(f"Password valid: {password_valid}")
         

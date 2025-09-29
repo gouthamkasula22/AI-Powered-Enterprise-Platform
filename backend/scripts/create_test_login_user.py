@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 from src.domain.entities.user import User
 from src.domain.value_objects.email import Email
 from src.domain.value_objects.password import Password
-from src.domain.value_objects.user_role import UserRole
+from src.domain.value_objects.role import UserRole
 from src.infrastructure.database.repositories import SqlUserRepository
 from src.infrastructure.database.database import initialize_database, get_db_session
 

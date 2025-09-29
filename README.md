@@ -92,18 +92,17 @@ npm run dev
 ```
 User Authentication Systems/
 ├── backend/
-│   ├── app/
-│   │   ├── api/v1/          # API routes
-│   │   ├── core/            # Configuration & security
-│   │   ├── models/          # Database models
-│   │   ├── schemas/         # Pydantic schemas
-│   │   ├── services/        # Business logic
-│   │   ├── repositories/    # Data access layer
-│   │   └── middleware/      # Custom middleware
+│   ├── src/                # Clean Architecture Source Code
+│   │   ├── domain/         # Domain layer (entities, value objects, services)
+│   │   ├── application/    # Application layer (use cases, DTOs, interfaces)
+│   │   ├── infrastructure/ # Infrastructure layer (database, external services)
+│   │   ├── presentation/   # Presentation layer (APIs, controllers)
+│   │   └── shared/         # Shared utilities and configuration
 │   ├── alembic/            # Database migrations
+│   ├── scripts/            # Utility scripts
 │   ├── tests/              # Backend tests
 │   ├── requirements.txt    # Python dependencies
-│   └── main.py            # FastAPI application
+│   └── pyproject.toml      # Project configuration
 ├── frontend/
 │   ├── src/
 │   │   ├── components/     # React components

@@ -24,7 +24,7 @@ python test_smtp.py
 ### Start Backend Server
 ```bash
 cd backend
-python main.py
+python scripts/run_dev_server.py
 ```
 
 ## Why These Locations?

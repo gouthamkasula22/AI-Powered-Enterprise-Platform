@@ -23,6 +23,45 @@ const ClaudeChatPage = () => {
   const [showDocumentManager, setShowDocumentManager] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [documents, setDocuments] = useState([]);
+  const [loadingDocuments, setLoadingDocuments] = useState(false);
+
+  // Function to fetch user's documents
+  const fetchDocuments = async () => {
+    if (!token || !user || user.role.toLowerCase() !== 'admin') return;
+    
+    setLoadingDocuments(true);
+    try {
+      const response = await axios.get('/api/v1/documents/my-documents', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      // Extract documents array from the response
+      setDocuments(response.data.documents || []);
+    } catch (error) {
+      console.error('Error fetching documents:', error);
+      alert('Failed to load documents');
+    } finally {
+      setLoadingDocuments(false);
+    }
+  };
+
+  // Function to delete a document
+  const deleteDocument = async (documentId) => {
+    if (!token || !user || user.role.toLowerCase() !== 'admin') return;
+    
+    try {
+      await axios.delete(`/api/v1/documents/${documentId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Remove document from state
+      setDocuments(documents.filter(doc => doc.id !== documentId));
+      alert('Document deleted successfully');
+    } catch (error) {
+      console.error('Error deleting document:', error);
+      alert('Failed to delete document');
+    }
+  };
 
   // Function to load chat data based on threadId
   const fetchConversation = async () => {
@@ -110,6 +149,13 @@ const ClaudeChatPage = () => {
   useEffect(() => {
     fetchConversation();
   }, [threadId, token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch documents when document manager is opened
+  useEffect(() => {
+    if (showDocumentManager && user?.role?.toLowerCase() === 'admin') {
+      fetchDocuments();
+    }
+  }, [showDocumentManager]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Function to handle sending messages
   const handleSendMessage = async (e) => {
@@ -671,6 +717,94 @@ const ClaudeChatPage = () => {
                 }`}
               >
                 {uploading ? 'Uploading...' : 'Upload'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Manager Modal - Only for admins */}
+      {showDocumentManager && user?.role?.toLowerCase() === 'admin' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className={`p-6 rounded-lg max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Manage Documents
+              </h3>
+              <button
+                onClick={() => setShowDocumentManager(false)}
+                className={`text-2xl font-bold hover:opacity-70 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}
+              >
+                ×
+              </button>
+            </div>
+            
+            {loadingDocuments ? (
+              <div className={`text-center py-8 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                Loading documents...
+              </div>
+            ) : documents.length === 0 ? (
+              <div className={`text-center py-8 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                <div className="text-4xl mb-4">📄</div>
+                <p className="text-lg mb-2">No documents uploaded yet</p>
+                <p className="text-sm">Upload documents to get started with document-based chat</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {documents.map((doc) => (
+                  <div key={doc.id} className={`p-4 rounded-lg border ${
+                    isDarkMode 
+                      ? 'bg-gray-700 border-gray-600' 
+                      : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {doc.filename}
+                        </h4>
+                        <div className={`text-sm mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                          <div>Size: {doc.size_bytes ? Math.round(doc.size_bytes / 1024) + ' KB' : 'Unknown'}</div>
+                          <div>Type: {doc.file_type || 'Unknown'}</div>
+                          <div>Words: {doc.word_count || 'Unknown'}</div>
+                          <div>Uploaded: {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : 'Unknown'}</div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Are you sure you want to delete "${doc.filename}"?`)) {
+                            deleteDocument(doc.id);
+                          }
+                        }}
+                        className="ml-4 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 transition-colors text-sm"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => {
+                  setShowUploadModal(true);
+                  setShowDocumentManager(false);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+              >
+                Upload New Document
+              </button>
+              <button
+                onClick={() => setShowDocumentManager(false)}
+                className={`px-4 py-2 rounded transition-colors ${
+                  isDarkMode 
+                    ? 'bg-gray-600 text-white hover:bg-gray-700' 
+                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                }`}
+              >
+                Close
               </button>
             </div>
           </div>

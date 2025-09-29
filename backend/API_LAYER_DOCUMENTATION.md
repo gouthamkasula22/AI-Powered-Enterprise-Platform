@@ -8,7 +8,6 @@ The FastAPI Presentation Layer provides a complete HTTP API interface for the Us
 
 ```
 src/presentation/
-├── main.py                     # FastAPI application entry point
 ├── api/
 │   ├── endpoints/              # API route definitions
 │   │   ├── auth.py            # Authentication endpoints
@@ -167,7 +166,7 @@ CORS_ORIGINS=["http://localhost:3000", "http://localhost:5173"]
 
 ### Rate Limiting Configuration
 ```python
-# In main.py
+# In scripts/run_dev_server.py or application startup
 app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
 
 # Endpoint-specific limits in middleware
