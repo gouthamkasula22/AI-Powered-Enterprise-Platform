@@ -9,10 +9,12 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any
 import asyncio
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from pydantic import BaseModel, Field
 
 from ...shared.exceptions import (
@@ -23,11 +25,13 @@ from ...shared.exceptions import (
 )
 from ...infrastructure.database.database import get_db_session
 from ...infrastructure.ai.conversation_manager import ConversationManager
-from ...infrastructure.ai.query_processor import QueryProcessor
+from ...infrastructure.ai.query_processor import QueryProcessor, Message
 from ...infrastructure.ai.context_manager import ContextManager
 from ...infrastructure.ai.prompt_manager import PromptManager
 from ...infrastructure.ai.llm_service import LLMService
 from ...infrastructure.database.models import ChatThread, ChatMessage, UserModel
+from ...infrastructure.database.models.chat_models import Document
+from ...presentation.api.dependencies.auth import get_current_active_user
 
 
 # Pydantic Models for API
@@ -43,6 +47,7 @@ class SendMessageRequest(BaseModel):
     content: str = Field(..., min_length=1, description="Message content")
     message_type: Optional[str] = Field("text", description="Type of message")
     context: Optional[Dict[str, Any]] = Field(None, description="Additional context for the message")
+    chat_mode: Optional[str] = Field("general", description="Chat mode: 'general' for normal AI chat, 'rag' for document-based chat")
 
 
 class ConversationResponse(BaseModel):
@@ -93,15 +98,18 @@ class ChatStreamMessage(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
+# Initialize logger
+logger = logging.getLogger(__name__)
+
 # Router and dependency setup
 router = APIRouter(tags=["chat"])
 
 
-async def get_current_user_id() -> int:
+async def get_current_user_id(
+    current_user = Depends(get_current_active_user)
+) -> int:
     """Get current user ID from authentication context."""
-    # TODO: Implement proper JWT authentication
-    # For now, return a default user ID for testing
-    return 1
+    return current_user.id
 
 
 async def get_chat_services(
@@ -169,6 +177,8 @@ async def create_conversation(
     try:
         conversation_manager = services[0]
         
+        logger.info(f"Creating conversation for user {user_id} with title: {request.title}")
+        
         conversation = await conversation_manager.create_conversation(
             user_id=user_id,
             title=request.title,
@@ -176,7 +186,9 @@ async def create_conversation(
             tags=request.tags
         )
         
-        return ConversationResponse(
+        logger.info(f"Conversation created successfully: {conversation.id}")
+        
+        response = ConversationResponse(
             id=conversation.id,
             title=conversation.title,
             user_id=conversation.user_id,
@@ -190,9 +202,14 @@ async def create_conversation(
             last_message_at=None
         )
         
+        logger.info(f"Response model created successfully")
+        return response
+        
     except ValidationError as e:
+        logger.error(f"Validation error creating conversation: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        logger.error(f"Error creating conversation: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to create conversation: {str(e)}")
 
 
@@ -202,10 +219,11 @@ async def list_conversations(
     per_page: int = 20,
     category: Optional[str] = None,
     status: Optional[str] = None,
+    include_archived: bool = False,
     user_id: int = Depends(get_current_user_id),
     services: tuple = Depends(get_chat_services)
 ):
-    """List conversations for the current user."""
+    """List conversations for the current user. Excludes archived/deleted conversations by default."""
     try:
         conversation_manager = services[0]
         
@@ -214,7 +232,8 @@ async def list_conversations(
             category=category,
             status=status,
             page=page,
-            per_page=per_page
+            per_page=per_page,
+            include_archived=include_archived
         )
         
         conversation_responses = []
@@ -229,8 +248,8 @@ async def list_conversations(
                 is_favorite=conv.is_favorite,
                 created_at=conv.created_at,
                 updated_at=conv.updated_at,
-                message_count=len(conv.messages) if hasattr(conv, 'messages') else 0,
-                last_message_at=conv.updated_at
+                message_count=conv.message_count,
+                last_message_at=conv.last_message_at
             ))
         
         return ConversationListResponse(
@@ -270,8 +289,8 @@ async def get_conversation(
             is_favorite=conversation.is_favorite,
             created_at=conversation.created_at,
             updated_at=conversation.updated_at,
-            message_count=len(conversation.messages) if hasattr(conversation, 'messages') else 0,
-            last_message_at=conversation.updated_at
+            message_count=conversation.message_count,
+            last_message_at=conversation.last_message_at
         )
         
     except HTTPException:
@@ -307,7 +326,7 @@ async def get_conversation_messages(
         for msg in messages:
             message_responses.append(MessageResponse(
                 id=msg.id,
-                conversation_id=msg.conversation_id,
+                conversation_id=msg.thread_id,  # Use thread_id instead of conversation_id
                 user_id=msg.user_id,
                 content=msg.content,
                 message_type=msg.message_type,
@@ -315,7 +334,7 @@ async def get_conversation_messages(
                 created_at=msg.created_at,
                 is_ai_response=msg.role == "assistant",
                 processing_time_ms=msg.processing_time_ms,
-                model_used=msg.model_used
+                model_used=msg.ai_model
             ))
         
         return {
@@ -330,6 +349,81 @@ async def get_conversation_messages(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to get messages: {str(e)}")
+
+
+@router.delete("/conversations/{conversation_id}")
+async def delete_conversation(
+    conversation_id: int,
+    user_id: int = Depends(get_current_user_id),
+    services: tuple = Depends(get_chat_services)
+):
+    """Delete a conversation thread and all its messages."""
+    try:
+        conversation_manager = services[0]
+        
+        logger.info(f"Deleting conversation {conversation_id} for user {user_id}")
+        
+        # Verify the conversation belongs to the current user
+        conversation = await conversation_manager.get_conversation(conversation_id, user_id)
+        if not conversation:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        
+        # Delete the conversation (this should cascade delete all messages)
+        success = await conversation_manager.delete_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to delete conversation"
+            )
+        
+        logger.info(f"Conversation {conversation_id} deleted successfully")
+        
+        return {"message": "Conversation deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting conversation: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to delete conversation")
+
+
+@router.patch("/conversations/{conversation_id}/archive")
+async def archive_conversation(
+    conversation_id: int,
+    user_id: int = Depends(get_current_user_id),
+    services: tuple = Depends(get_chat_services)
+):
+    """Archive a conversation thread (soft delete)."""
+    try:
+        conversation_manager = services[0]
+        
+        logger.info(f"Archiving conversation {conversation_id} for user {user_id}")
+        
+        # Soft delete the conversation
+        success = await conversation_manager.soft_delete_conversation(
+            conversation_id=conversation_id,
+            user_id=user_id
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail="Conversation not found or could not be archived"
+            )
+        
+        logger.info(f"Conversation {conversation_id} archived successfully")
+        
+        return {"message": "Conversation archived successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error archiving conversation: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to archive conversation")
 
 
 @router.post("/conversations/{conversation_id}/messages", response_model=MessageResponse)
@@ -362,49 +456,152 @@ async def send_message(
         start_time = datetime.now()
         
         # 1. Process the query
-        processed_query = query_processor.process_query(request.content)
+        logger.info("Step 1: Processing query")
+        processed_query = await query_processor.process_query(request.content, user_id)
+        logger.info(f"Processed query: {processed_query}")
         
         # 2. Get conversation context
+        logger.info("Step 2: Getting conversation context")
         conversation_context = await conversation_manager.get_conversation_context(
             conversation_id, max_messages=10
         )
+        logger.info(f"Conversation context: {len(conversation_context.messages)} messages")
         
-        # 3. Build context window (simulate document retrieval for now)
-        mock_chunks = [
-            {"content": "User authentication documentation content...", "score": 0.9},
-            {"content": "JWT token validation guidelines...", "score": 0.8}
-        ]
-        context_window = context_manager.build_context_window(
-            query=processed_query,
-            chunks=mock_chunks,
-            conversation_context=conversation_context
-        )
+        # 3. Build context window (retrieve actual documents)
+        logger.info("Step 3: Building context window with real documents")
         
-        # 4. Build prompt
-        prompt_data = prompt_manager.build_rag_prompt(
-            query=processed_query,
-            context_window=context_window,
-            conversation_context=conversation_context
-        )
+        # Use the existing session from the services dependency
+        # Get database session through the get_chat_services function
+        session_gen = get_db_session()
+        session = await session_gen.__anext__()
+        
+        try:
+            # Query documents directly from the database for this conversation
+            from sqlalchemy import text
+            
+            query = text("""
+                SELECT id, filename, extracted_text, word_count, created_at 
+                FROM chat_documents 
+                WHERE thread_id = :thread_id 
+                AND processing_status = 'completed'
+                AND extracted_text IS NOT NULL
+                LIMIT 10
+            """)
+            result = await session.execute(query, {"thread_id": conversation_id})
+            documents = result.fetchall()
+            
+            logger.info(f"Found {len(documents)} documents for conversation {conversation_id}")
+            
+            # Create chunks from document content
+            retrieved_chunks = []
+            for doc in documents:
+                if doc.extracted_text:  # doc.extracted_text is index 2
+                    # Create a chunk object with the required attributes
+                    class DocumentChunk:
+                        def __init__(self, doc_id, filename, content):
+                            self.id = doc_id
+                            self.content = content[:2000] if len(content) > 2000 else content
+                            self.chunk_index = 0
+                            # Create a simple document-like object
+                            self.document = type('Document', (), {
+                                'filename': filename,
+                                'created_at': doc.created_at
+                            })()
+                    
+                    chunk = DocumentChunk(doc.id, doc.filename, doc.extracted_text)
+                    retrieved_chunks.append(chunk)
+            
+            logger.info(f"Created {len(retrieved_chunks)} chunks from documents")
+            
+            # Build context window with real document content or fallback to mock
+            if retrieved_chunks:
+                context_window = await context_manager.build_context_window(
+                    retrieved_chunks=retrieved_chunks,
+                    query=processed_query
+                )
+            else:
+                # Fallback to empty context if no documents found
+                logger.info("No documents found, using empty context")
+                context_window = await context_manager.build_context_window(
+                    retrieved_chunks=[],
+                    query=processed_query
+                )
+        finally:
+            await session.close()
+        logger.info("Context window built successfully")
+        
+        # Convert conversation messages to Message objects
+        message_objects = []
+        if conversation_context and conversation_context.messages:
+            for msg_dict in conversation_context.messages:
+                message_objects.append(Message(
+                    role=msg_dict["role"],
+                    content=msg_dict["content"],
+                    timestamp=datetime.fromisoformat(msg_dict["timestamp"]) if isinstance(msg_dict["timestamp"], str) else msg_dict["timestamp"],
+                    message_id=str(msg_dict["id"])
+                ))
+        
+        # 4. Build prompt based on chat mode  
+        logger.info(f"Step 4: Building prompt for {request.chat_mode} mode")
+        
+        if request.chat_mode == "rag":
+            # Use RAG mode with document context
+            prompt_data = await prompt_manager.build_rag_prompt(
+                query=request.content,  # Original query string
+                processed_query=processed_query,  # ProcessedQuery object
+                context_window=context_window,
+                chat_history=message_objects
+            )
+        else:
+            # Use general chat mode - just the user query with conversation history
+            prompt_data = request.content
+            
+        logger.info("Prompt built successfully")
         
         # 5. Generate AI response
-        ai_response = await llm_service.generate_response(
-            prompt=prompt_data.full_prompt,
-            model_params=prompt_data.model_params
-        )
+        try:
+            logger.info(f"Step 5: Generating AI response for {request.chat_mode} mode")
+            
+            if request.chat_mode == "rag":
+                # RAG mode - use document context
+                ai_response = await llm_service.generate_response(
+                    query=prompt_data,  # Use the formatted RAG prompt
+                    context_window=context_window,
+                    conversation_history=message_objects,
+                    model=None,  # Let LLM service use default
+                    temperature=None,  # Let LLM service use default
+                    max_tokens=None  # Let LLM service use default
+                )
+            else:
+                # General chat mode - use simpler approach
+                ai_response = await llm_service.generate_general_response(
+                    query=request.content,
+                    conversation_history=message_objects,
+                    model=None,
+                    temperature=0.7,  # Slightly more creative for general chat
+                    max_tokens=None
+                )
+            
+            logger.info(f"AI response generated successfully: {ai_response.content[:100]}...")
+            
+        except Exception as e:
+            logger.error(f"Error generating AI response: {str(e)}", exc_info=True)
+            raise
         
         processing_time = (datetime.now() - start_time).total_seconds() * 1000
         
         # 6. Add AI message
+        logger.info("Step 6: Saving AI message")
         ai_message = await conversation_manager.add_message(
             conversation_id=conversation_id,
-            user_id=None,  # AI message
+            user_id=user_id,  # Use current user ID for AI messages to avoid FK constraint
             content=ai_response.content,
             role="assistant",
             message_type="text",
             processing_time_ms=int(processing_time),
-            model_used=ai_response.model_used
+            model_used=ai_response.model
         )
+        logger.info(f"AI message saved successfully: ID {ai_message.id}")
         
         # Send WebSocket notification
         await connection_manager.send_personal_message(
@@ -423,7 +620,7 @@ async def send_message(
         
         return MessageResponse(
             id=ai_message.id,
-            conversation_id=ai_message.conversation_id,
+            conversation_id=ai_message.thread_id,  # Use thread_id instead of conversation_id
             user_id=ai_message.user_id,
             content=ai_message.content,
             message_type=ai_message.message_type,
@@ -431,7 +628,7 @@ async def send_message(
             created_at=ai_message.created_at,
             is_ai_response=True,
             processing_time_ms=ai_message.processing_time_ms,
-            model_used=ai_message.model_used
+            model_used=ai_message.ai_model
         )
         
     except HTTPException:
@@ -486,16 +683,51 @@ async def stream_message(
                 conversation_id, max_messages=10
             )
             
-            # Mock document retrieval
-            mock_chunks = [
-                {"content": "User authentication documentation content...", "score": 0.9},
-                {"content": "JWT token validation guidelines...", "score": 0.8}
-            ]
-            context_window = context_manager.build_context_window(
-                query=processed_query,
-                chunks=mock_chunks,
-                conversation_context=conversation_context
-            )
+            # Real document retrieval
+            yield f"data: {json.dumps({'type': 'status', 'content': 'Retrieving documents...'})}\n\n"
+            
+            # Get database session to retrieve documents
+            session_gen = get_db_session()
+            session = await session_gen.__anext__()
+            
+            try:
+                # Query documents directly from the database for this conversation
+                from sqlalchemy import text
+                
+                query = text("""
+                    SELECT id, filename, extracted_text, word_count, created_at 
+                    FROM chat_documents 
+                    WHERE thread_id = :thread_id 
+                    AND processing_status = 'completed'
+                    AND extracted_text IS NOT NULL
+                    LIMIT 10
+                """)
+                result = await session.execute(query, {"thread_id": conversation_id})
+                documents = result.fetchall()
+                
+                logger.info(f"Found {len(documents)} documents for conversation {conversation_id}")
+                
+                # Create chunks from document content
+                retrieved_chunks = []
+                for doc in documents:
+                    if doc.extracted_text:  # doc.extracted_text is index 2
+                        chunk_data = {
+                            "content": doc.extracted_text[:2000] if len(doc.extracted_text) > 2000 else doc.extracted_text,
+                            "score": 0.9,  # Default relevance score
+                            "document_name": doc.filename
+                        }
+                        retrieved_chunks.append(chunk_data)
+                
+                logger.info(f"Created {len(retrieved_chunks)} chunks from documents")
+                
+                # Use real document chunks or fallback to empty
+                context_window = context_manager.build_context_window(
+                    query=processed_query,
+                    chunks=retrieved_chunks,
+                    conversation_context=conversation_context
+                )
+            finally:
+                await session.close()
             
             # Build prompt
             prompt_data = prompt_manager.build_rag_prompt(
@@ -507,10 +739,16 @@ async def stream_message(
             # Stream AI response
             yield f"data: {json.dumps({'type': 'status', 'content': 'Generating response...'})}\n\n"
             
+            # Map model params if present
+            model_params = getattr(prompt_data, "model_params", {}) or {}
+            
             full_response = ""
             async for chunk in llm_service.stream_response(
-                prompt=prompt_data.full_prompt,
-                model_params=prompt_data.model_params
+                query=request.content,
+                context_window=context_window,
+                conversation_history=conversation_context.get("history", []) if conversation_context else [],
+                model=model_params.get("model"),
+                temperature=model_params.get("temperature")
             ):
                 full_response += chunk.content
                 yield f"data: {json.dumps({'type': 'message_chunk', 'content': chunk.content})}\n\n"

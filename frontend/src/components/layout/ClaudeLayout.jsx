@@ -56,7 +56,7 @@ const ClaudeLayout = ({ children }) => {
               className="flex items-center p-2 rounded-md hover:bg-gray-800"
             >
               <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm">
-                {user?.name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || 'U'}
+                {user?.first_name?.charAt(0) || user?.display_name?.charAt(0) || user?.email?.charAt(0)?.toUpperCase() || 'U'}
               </div>
             </button>
             
@@ -64,8 +64,13 @@ const ClaudeLayout = ({ children }) => {
             {isUserMenuOpen && (
               <div className={`absolute right-0 top-full mt-1 w-64 ${isDarkMode ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} border rounded-md shadow-lg z-50`}>
                 <div className={`p-4 border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
-                  <p className="font-medium">{user?.name || 'User'}</p>
+                  <p className="font-medium">
+                    {user?.display_name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'User'}
+                  </p>
                   <p className="text-sm text-gray-400">{user?.email || 'user@example.com'}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {user?.role?.toLowerCase() === 'admin' ? 'Administrator' : 'User'}
+                  </p>
                 </div>
                 
                 <div className="py-2">

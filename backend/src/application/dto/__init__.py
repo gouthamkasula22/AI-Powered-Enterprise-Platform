@@ -230,12 +230,34 @@ class PaginatedResponseDTO:
 # Utility functions for DTO conversion
 def user_entity_to_dto(user) -> UserDTO:
     """Convert User entity to UserDTO"""
+    # Handle role conversion more robustly
+    user_role = user.role if user.role else UserRole.USER
+    
+    # Ensure role is a UserRole enum instance
+    if isinstance(user_role, str):
+        try:
+            # Convert string role to UserRole enum (handles both uppercase and lowercase)
+            role_value = user_role.lower()
+            user_role = UserRole(role_value)
+        except ValueError:
+            user_role = UserRole.USER
+    
+    # Calculate admin status based on role (handle both string and enum)
+    is_admin_role = False
+    if user_role:
+        if isinstance(user_role, UserRole):
+            is_admin_role = user_role in [UserRole.ADMIN, UserRole.SUPERADMIN]
+        else:
+            # Handle string role (could be uppercase or lowercase)
+            role_str = str(user_role).lower()
+            is_admin_role = role_str in ['admin', 'superadmin']
+    
     return UserDTO(
         id=user.id,
         email=user.email.value if user.email else "",
         created_at=user.created_at,
         updated_at=user.updated_at,
-        role=user.role,
+        role=user_role,
         username=user.username,
         first_name=user.first_name,
         last_name=user.last_name,
@@ -248,7 +270,7 @@ def user_entity_to_dto(user) -> UserDTO:
         is_verified=user.is_verified,
         is_staff=user.is_staff,
         is_superuser=user.is_superuser,
-        is_admin=user.role.value in ['admin', 'superadmin'] if user.role else False,
+        is_admin=is_admin_role or user.is_superuser,  # Include superuser flag as fallback
         timezone=user.timezone,
         locale=user.locale,
         last_login=user.last_login

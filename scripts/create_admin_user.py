@@ -33,16 +33,16 @@ async def promote_to_admin(email: str):
         
         print(f"📋 Found user: {user['first_name']} {user['last_name']} (Current role: {user['role']})")
         
-        # Check if already admin
-        if user['role'] == 'ADMIN':
-            print(f"ℹ️  User '{email}' is already an ADMIN!")
+        # Check if already admin (check both cases for backward compatibility)
+        if user['role'] in ['ADMIN', 'admin']:
+            print(f"ℹ️  User '{email}' is already an admin!")
             await conn.close()
             return True
         
-        # Promote user to admin
+        # Promote user to admin (using lowercase to match system expectations)
         result = await conn.execute("""
             UPDATE users 
-            SET role = 'ADMIN', 
+            SET role = 'admin', 
                 is_verified = true, 
                 is_active = true, 
                 email_verification_token = NULL, 
@@ -54,8 +54,8 @@ async def promote_to_admin(email: str):
         await conn.close()
         
         if result == "UPDATE 1":
-            print(f"✅ Successfully promoted '{email}' to ADMIN!")
-            print(f"   - Role: {user['role']} → ADMIN")
+            print(f"✅ Successfully promoted '{email}' to admin!")
+            print(f"   - Role: {user['role']} → admin")
             print(f"   - Verified: ✓")
             print(f"   - Active: ✓")
             print(f"   - Email verification cleared")

@@ -79,10 +79,22 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [token, setToken] = useState(null)
   
   // Role-based access helpers
   const getUserRole = useCallback(() => {
-    return user?.role || 'user'
+    if (!user) return 'user'
+    
+    // First, use the role field if available
+    if (user.role) {
+      return user.role
+    }
+    
+    // Fallback to flags for backward compatibility
+    if (user.is_superuser) return 'superadmin'
+    if (user.is_admin) return 'admin'
+    
+    return 'user'
   }, [user])
   
   const hasRole = useCallback((requiredRole) => {
@@ -97,8 +109,24 @@ export const AuthProvider = ({ children }) => {
       'SUPERADMIN': 3
     }
     
-    return (roleHierarchy[userRole] || 0) >= (roleHierarchy[requiredRole] || 0)
-  }, [getUserRole])
+    const userLevel = roleHierarchy[userRole] || 0
+    const requiredLevel = roleHierarchy[requiredRole] || 0
+    const hasAccess = userLevel >= requiredLevel
+    
+    // Debug logging for admin role checking
+    if (requiredRole === 'admin' && userRole) {
+      console.log(`🔍 Role Check Debug:`, {
+        userRole,
+        requiredRole,
+        userLevel,
+        requiredLevel,
+        hasAccess,
+        user: user
+      })
+    }
+    
+    return hasAccess
+  }, [getUserRole, user])
   
   const hasPermission = useCallback((permission) => {
     const userRole = getUserRole()
@@ -116,23 +144,26 @@ export const AuthProvider = ({ children }) => {
   }, [getUserRole])
   
   const isAdmin = useCallback(() => {
-    return hasRole('ADMIN')
+    // Check for both uppercase and lowercase admin roles
+    return hasRole('ADMIN') || hasRole('admin')
   }, [hasRole])
   
   const isSuperAdmin = useCallback(() => {
-    return hasRole('SUPERADMIN')
+    // Check for both uppercase and lowercase superadmin roles
+    return hasRole('SUPERADMIN') || hasRole('superadmin')
   }, [hasRole])
 
   // Check if user is logged in on app start
   useEffect(() => {
     const initializeAuth = () => {
-      const token = localStorage.getItem('access_token')
+      const storedToken = localStorage.getItem('access_token')
       const userData = localStorage.getItem('user')
       
-      if (token && userData) {
+      if (storedToken && userData) {
         try {
           const parsedUser = JSON.parse(userData)
           setUser(parsedUser)
+          setToken(storedToken)
           setIsAuthenticated(true)
           
           // Validate token immediately to check if it's still valid
@@ -227,6 +258,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('user', JSON.stringify(userData))
       
       setUser(userData)
+      setToken(access_token)
       setIsAuthenticated(true)
       
       if (showToast) {
@@ -269,6 +301,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('refresh_token')
     localStorage.removeItem('user')
     setUser(null)
+    setToken(null)
     setIsAuthenticated(false)
     toast.success('Logged out successfully')
   }
@@ -371,10 +404,16 @@ export const AuthProvider = ({ children }) => {
     return token ? { 'Authorization': `Bearer ${token}` } : {}
   }
 
+  // Get token for direct access
+  const getToken = () => {
+    return localStorage.getItem('access_token')
+  }
+
   const value = {
     user,
     isLoading,
     isAuthenticated,
+    token, // Use state variable instead of getToken()
     login,
     register,
     logout,
@@ -388,7 +427,8 @@ export const AuthProvider = ({ children }) => {
     hasPermission,
     isAdmin,
     isSuperAdmin,
-    getAuthHeader
+    getAuthHeader,
+    getToken
   }
 
   return (

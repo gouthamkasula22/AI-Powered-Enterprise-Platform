@@ -166,9 +166,9 @@ export const RoleErrorHandler = ({ children, fallback = null }) => {
       const userRole = getUserRole()
       let specificMessage = ERROR_MESSAGES.INSUFFICIENT_PERMISSIONS
       
-      if (userRole === 'USER') {
+      if (['USER', 'user'].includes(userRole)) {
         specificMessage = 'This feature requires administrator access. Please contact your system administrator.'
-      } else if (userRole === 'ADMIN') {
+      } else if (['ADMIN', 'admin'].includes(userRole)) {
         specificMessage = 'This feature requires super administrator access.'
       }
       

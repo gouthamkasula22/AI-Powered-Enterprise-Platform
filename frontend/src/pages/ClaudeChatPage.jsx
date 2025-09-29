@@ -18,6 +18,11 @@ const ClaudeChatPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [chatTitle, setChatTitle] = useState('');
   const [error, setError] = useState(null);
+  const [chatMode, setChatMode] = useState('general');
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showDocumentManager, setShowDocumentManager] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
 
   // Function to load chat data based on threadId
   const fetchConversation = async () => {
@@ -108,8 +113,14 @@ const ClaudeChatPage = () => {
 
   // Function to handle sending messages
   const handleSendMessage = async (e) => {
+    console.log('sendMessage called with:', message);
+    console.log('token:', !!token, 'isLoading:', isLoading, 'message.trim():', !!message.trim());
+    
     e.preventDefault();
-    if (!message.trim() || isLoading || !token) return;
+    if (!message.trim() || isLoading || !token) {
+      console.log('Early return - conditions not met');
+      return;
+    }
     
     // Add user message to UI immediately for better UX
     const userMessage = {
@@ -131,6 +142,7 @@ const ClaudeChatPage = () => {
         const newTitle = messageContent.length > 30 ? messageContent.substring(0, 30) + '...' : messageContent;
         
         try {
+          console.log('Making API call to create conversation');
           // Create new conversation
           const conversationResponse = await axios.post('/api/conversations', {
             title: newTitle,
@@ -138,13 +150,15 @@ const ClaudeChatPage = () => {
           }, {
             headers: { Authorization: `Bearer ${token}` }
           });
+          console.log('Conversation created:', conversationResponse.data);
           
           const newThreadId = conversationResponse.data.id;
           setChatTitle(newTitle);
           
           // Send first message
           const messageResponse = await axios.post(`/api/conversations/${newThreadId}/messages`, {
-            content: messageContent
+            content: messageContent,
+            chat_mode: chatMode
           }, {
             headers: { Authorization: `Bearer ${token}` }
           });
@@ -214,12 +228,15 @@ const ClaudeChatPage = () => {
       } else {
         // Existing conversation
         try {
+          console.log('Making API call to send message to existing conversation');
           // Send message to existing conversation
           const messageResponse = await axios.post(`/api/conversations/${threadId}/messages`, {
-            content: messageContent
+            content: messageContent,
+            chat_mode: chatMode
           }, {
             headers: { Authorization: `Bearer ${token}` }
           });
+          console.log('Message sent:', messageResponse.data);
           
           // Similar approach as with new conversations
           let aiMessage;
@@ -287,6 +304,63 @@ const ClaudeChatPage = () => {
       setError('Failed to send message. Please try again.');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // File handling functions for admin users
+  const handleFileSelect = (event) => {
+    setSelectedFiles(Array.from(event.target.files));
+  };
+
+  const handleUploadDocuments = async () => {
+    if (selectedFiles.length === 0) return;
+    
+    setUploading(true);
+    
+    try {
+      // Create a form data for each file (the endpoint expects one file at a time)
+      const uploadPromises = selectedFiles.map(async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // Only include thread_id if we have a valid current thread
+        if (threadId && threadId !== 'new') {
+          const numericThreadId = parseInt(threadId, 10);
+          formData.append('thread_id', numericThreadId.toString());
+        }
+        // If no thread_id, let the backend create/find an appropriate thread
+        
+        return await axios.post('/api/v1/documents/upload', formData, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+      });
+      
+      await Promise.all(uploadPromises);
+      
+      setShowUploadModal(false);
+      setSelectedFiles([]);
+      alert('Documents uploaded successfully!');
+    } catch (error) {
+      console.error('Upload error:', error);
+      let errorMessage = 'Failed to upload documents';
+      
+      if (error.response?.data?.detail) {
+        // Handle string or array of error details
+        if (typeof error.response.data.detail === 'string') {
+          errorMessage = error.response.data.detail;
+        } else if (Array.isArray(error.response.data.detail)) {
+          errorMessage = error.response.data.detail.map(err => err.msg || err).join(', ');
+        }
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      alert(errorMessage);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -403,13 +477,83 @@ const ClaudeChatPage = () => {
         {/* Input Area */}
         <div className={`border-t ${isDarkMode ? 'border-gray-800 bg-gray-900' : 'border-gray-200 bg-white'} p-4 relative`}>
           <div className="max-w-3xl mx-auto w-full">
+            {/* Chat Mode Selector */}
+            <div className="flex items-center mb-3">
+              <label className={`text-sm font-medium mr-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                Chat Mode:
+              </label>
+              <div className={`flex rounded-md p-1 ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                <button
+                  type="button"
+                  onClick={() => setChatMode('general')}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    chatMode === 'general'
+                      ? isDarkMode 
+                        ? 'bg-gray-700 text-blue-400 shadow-sm'
+                        : 'bg-white text-blue-600 shadow-sm'
+                      : isDarkMode
+                        ? 'text-gray-400 hover:text-gray-200'
+                        : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  General Chat
+                </button>
+                {user?.role?.toLowerCase() === 'admin' && (
+                  <button
+                    type="button"
+                    onClick={() => setChatMode('rag')}
+                    className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                      chatMode === 'rag'
+                        ? isDarkMode 
+                          ? 'bg-gray-700 text-blue-400 shadow-sm'
+                          : 'bg-white text-blue-600 shadow-sm'
+                        : isDarkMode
+                          ? 'text-gray-400 hover:text-gray-200'
+                          : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Document-Based
+                  </button>
+                )}
+              </div>
+              <p className={`text-xs mt-1 ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                {chatMode === 'general' 
+                  ? 'Chat with AI about anything' 
+                  : 'Chat based on uploaded documents (Admin only)'
+                }
+              </p>
+            </div>
+
+            {/* Admin Tools - Only visible to admins */}
+            {user?.role?.toLowerCase() === 'admin' && (
+              <div className={`mb-4 p-4 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                <h3 className={`font-medium mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Admin Tools</h3>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowUploadModal(true)}
+                    className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                  >
+                    Upload Documents
+                  </button>
+                  <button
+                    onClick={() => setShowDocumentManager(true)}
+                    className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
+                  >
+                    Manage Documents
+                  </button>
+                </div>
+              </div>
+            )}
             <form onSubmit={handleSendMessage} className="flex flex-col relative">
               <div className="relative rounded-md shadow-sm mb-2">
                 <textarea
                   rows={1}
                   value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Message Claude..."
+                  onChange={(e) => {
+                    console.log('Input changed:', e.target.value);
+                    setMessage(e.target.value);
+                  }}
+                  placeholder={chatMode === 'general' ? "Ask me anything..." : "Ask about your documents..."}
                   className={`block w-full rounded-lg py-3 px-4 ${
                     isDarkMode 
                       ? 'bg-gray-800 text-gray-100 focus:ring-gray-500 border-gray-700' 
@@ -417,7 +561,9 @@ const ClaudeChatPage = () => {
                   } focus:outline-none focus:ring-1 border resize-none`}
                   style={{ minHeight: '56px' }}
                   onKeyDown={(e) => {
+                    console.log('Key pressed:', e.key, 'Shift:', e.shiftKey, 'Message:', message);
                     if (e.key === 'Enter' && !e.shiftKey) {
+                      console.log('Enter key pressed, calling handleSendMessage');
                       e.preventDefault();
                       handleSendMessage(e);
                     }
@@ -428,6 +574,10 @@ const ClaudeChatPage = () => {
                     type="submit" 
                     disabled={!message.trim() || isLoading}
                     className={`p-1 rounded-md ${!message.trim() || isLoading ? 'text-gray-600' : 'text-orange-400 hover:text-orange-500'}`}
+                    onClick={(e) => {
+                      console.log('Send button clicked');
+                      handleSendMessage(e);
+                    }}
                   >
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                       <path d="M12 2C6.486 2 2 6.486 2 12s4.486 10 10 10 10-4.486 10-10S17.514 2 12 2zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z"></path>
@@ -471,6 +621,61 @@ const ClaudeChatPage = () => {
           </div>
         )}
       </div>
+
+      {/* Document Upload Modal - Only for admins */}
+      {showUploadModal && user?.role?.toLowerCase() === 'admin' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className={`p-6 rounded-lg max-w-md w-full mx-4 ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <h3 className={`text-lg font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+              Upload Documents
+            </h3>
+            <div className="mb-4">
+              <input
+                type="file"
+                multiple
+                accept=".pdf,.txt,.md,.doc,.docx"
+                onChange={handleFileSelect}
+                className={`w-full p-2 rounded border ${
+                  isDarkMode 
+                    ? 'bg-gray-700 text-white border-gray-600' 
+                    : 'bg-white text-gray-900 border-gray-300'
+                }`}
+              />
+              {selectedFiles.length > 0 && (
+                <div className={`mt-2 text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                  Selected: {selectedFiles.map(f => f.name).join(', ')}
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => {
+                  setShowUploadModal(false);
+                  setSelectedFiles([]);
+                }}
+                className={`px-4 py-2 rounded transition-colors ${
+                  isDarkMode 
+                    ? 'bg-gray-600 text-white hover:bg-gray-700' 
+                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUploadDocuments}
+                disabled={selectedFiles.length === 0 || uploading}
+                className={`px-4 py-2 rounded transition-colors ${
+                  selectedFiles.length === 0 || uploading
+                    ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {uploading ? 'Uploading...' : 'Upload'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </ClaudeLayout>
   );
 };

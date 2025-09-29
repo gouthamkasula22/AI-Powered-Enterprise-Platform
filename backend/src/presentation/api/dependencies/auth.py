@@ -243,18 +243,47 @@ def require_permissions(*required_permissions: str):
 # New Role-Based Dependencies
 
 def _extract_role_value(role_obj) -> str:
-    """Safely extract lowercase role value from possible Enum or string representations."""
+    """
+    Safely extract lowercase role value from possible Enum or string representations.
+    Handles both database values (uppercase) and enum values (lowercase).
+    """
     if role_obj is None:
         return ""
+    
     try:
+        # Handle UserRole enum instance
         if isinstance(role_obj, UserRole):
             return role_obj.value.lower()
-        # Sometimes Enum style string like 'UserRole.ADMIN'
-        text = str(role_obj)
-        if '.' in text:  # Split qualified Enum repr
+        
+        # Handle string representation
+        text = str(role_obj).strip()
+        if not text:
+            return ""
+        
+        # Handle qualified Enum repr like 'UserRole.ADMIN'
+        if '.' in text:
             text = text.split('.')[-1]
-        return text.lower()
-    except Exception:
+        
+        # Convert to lowercase for consistent comparison
+        # This handles both database values ("ADMIN") and enum values ("admin")
+        normalized = text.lower()
+        
+        # Map common variations to standard values
+        role_mapping = {
+            'admin': 'admin',
+            'administrator': 'admin',
+            'superadmin': 'superadmin',
+            'super_admin': 'superadmin',
+            'superadministrator': 'superadmin',
+            'user': 'user',
+            'member': 'user'
+        }
+        
+        return role_mapping.get(normalized, normalized)
+        
+    except Exception as e:
+        # Log the error for debugging but don't crash
+        logger.warning("Failed to extract role value from %s: %s", role_obj, e)
         return ""
 
 def require_role(*allowed_roles: UserRole):
@@ -333,30 +362,50 @@ async def require_admin(
 ) -> UserDTO:
     """
     Require admin role (ADMIN or SUPERADMIN)
+    Handles both uppercase (database) and lowercase (enum) role values
     """
-    # Handle both uppercase and lowercase role values
+    # Extract and normalize the role value (converts to lowercase)
     user_role = _extract_role_value(current_user.role)
-    admin_roles = ['admin', 'superadmin']  # Already lowercase from _extract_role_value
-    # Fallback to is_admin flag if role extraction ambiguous
-    if user_role not in admin_roles and getattr(current_user, 'is_admin', False):
-        user_role = 'admin'
+    admin_roles = [UserRole.ADMIN.value, UserRole.SUPERADMIN.value]  # 'admin', 'superadmin'
+    
+    # Enhanced debugging
     settings = get_settings()
     if getattr(settings, 'debug', False):
-        logger.debug("require_admin check user_id=%s role=%s lowered=%s is_admin_flag=%s", getattr(current_user, 'id', 'unknown'), current_user.role, user_role, getattr(current_user, 'is_admin', None))
+        logger.debug(
+            "require_admin check: user_id=%s, original_role='%s', normalized_role='%s', expected_roles=%s", 
+            getattr(current_user, 'id', 'unknown'), 
+            current_user.role, 
+            user_role, 
+            admin_roles
+        )
     
+    # Check if user has admin privileges
     if user_role not in admin_roles:
+        # Additional fallback check for is_superuser or is_admin flags
+        is_superuser = getattr(current_user, 'is_superuser', False)
+        is_admin = getattr(current_user, 'is_admin', False)
+        
+        if is_superuser or is_admin:
+            if getattr(settings, 'debug', False):
+                logger.debug("require_admin ALLOW via flag: is_superuser=%s, is_admin=%s", is_superuser, is_admin)
+            return current_user
+        
         if getattr(settings, 'debug', False):
-            logger.debug("require_admin DENY role=%s expected=%s", user_role, admin_roles)
+            logger.debug(
+                "require_admin DENY: role='%s', expected=%s, is_superuser=%s, is_admin=%s", 
+                user_role, admin_roles, is_superuser, is_admin
+            )
+        
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "error": "ADMIN_REQUIRED", 
-                "message": f"Admin privileges required. Current role: {user_role}"
+                "message": f"Admin privileges required. Current role: {current_user.role}"
             }
         )
     
     if getattr(settings, 'debug', False):
-        logger.debug("require_admin ALLOW role=%s", user_role)
+        logger.debug("require_admin ALLOW: role='%s'", user_role)
     return current_user
 
 
@@ -365,16 +414,44 @@ async def require_superadmin(
 ) -> UserDTO:
     """
     Require superadmin role
+    Handles both uppercase (database) and lowercase (enum) role values
     """
-    if _extract_role_value(current_user.role) != UserRole.SUPERADMIN.value:
+    user_role = _extract_role_value(current_user.role)
+    required_role = UserRole.SUPERADMIN.value  # 'superadmin'
+    
+    # Enhanced debugging
+    settings = get_settings()
+    if getattr(settings, 'debug', False):
+        logger.debug(
+            "require_superadmin check: user_id=%s, original_role='%s', normalized_role='%s', required_role='%s'", 
+            getattr(current_user, 'id', 'unknown'), 
+            current_user.role, 
+            user_role, 
+            required_role
+        )
+    
+    if user_role != required_role:
+        # Additional fallback check for is_superuser flag
+        is_superuser = getattr(current_user, 'is_superuser', False)
+        
+        if is_superuser:
+            if getattr(settings, 'debug', False):
+                logger.debug("require_superadmin ALLOW via is_superuser flag")
+            return current_user
+        
+        if getattr(settings, 'debug', False):
+            logger.debug("require_superadmin DENY: role='%s', required='%s', is_superuser=%s", user_role, required_role, is_superuser)
+        
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "error": "SUPERADMIN_REQUIRED", 
-                "message": "Superadmin privileges required"
+                "message": f"Superadmin privileges required. Current role: {current_user.role}"
             }
         )
     
+    if getattr(settings, 'debug', False):
+        logger.debug("require_superadmin ALLOW: role='%s'", user_role)
     return current_user
 
 

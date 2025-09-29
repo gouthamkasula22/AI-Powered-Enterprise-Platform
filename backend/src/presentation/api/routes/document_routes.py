@@ -8,11 +8,13 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
 from fastapi.security import HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from ....infrastructure.database.database import get_db_session
 from ....infrastructure.document.simple_document_processor import document_processor, DocumentProcessingError
-from ....infrastructure.database.models.chat_models import Document
+from ....infrastructure.database.models.chat_models import Document, ChatThread
 from ....presentation.api.dependencies.auth import get_current_user, require_admin
+
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer()
@@ -22,7 +24,7 @@ router = APIRouter(prefix="/api/v1/documents", tags=["Documents"])
 
 @router.post("/upload", response_model=dict)
 async def upload_document(
-    thread_id: int = Form(...),
+    thread_id: Optional[int] = Form(None),
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_db_session),
     current_user = Depends(require_admin)  # Admin only
@@ -31,7 +33,7 @@ async def upload_document(
     Upload and process a document (Admin only)
     
     Args:
-        thread_id: Chat thread ID to associate document with
+        thread_id: Optional chat thread ID to associate document with (will create/find one if not provided)
         file: Uploaded file
         session: Database session
         current_user: Current authenticated user (must be admin)
@@ -48,12 +50,63 @@ async def upload_document(
         # Ensure filename is not None
         safe_filename = file.filename if file.filename is not None else "unnamed_file"
         
-        # Validate upload
+        # Validate upload (extract role value as string)
+        role_value = current_user.role.value if hasattr(current_user.role, 'value') else str(current_user.role)
         await document_processor.validate_upload(
             file_content, 
             safe_filename, 
-            current_user.role
+            role_value
         )
+        
+        # Handle thread_id - find existing or create new thread
+        if thread_id is None:
+            # Look for an existing thread for this user, or create a new one
+            stmt = select(ChatThread).where(
+                ChatThread.user_id == current_user.id
+            ).order_by(ChatThread.created_at.desc()).limit(1)
+            
+            result = await session.execute(stmt)
+            existing_thread = result.scalar_one_or_none()
+            
+            if existing_thread:
+                thread_id = existing_thread.id
+                logger.info(f"Using existing thread {thread_id} for user {current_user.id}")
+            else:
+                # Create a simple new thread for document uploads
+                from datetime import datetime
+                new_thread = ChatThread(
+                    user_id=current_user.id,
+                    title="Document Uploads",
+                    category="general",
+                    status="active",
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow(),
+                    tags=[],
+                    meta_data={},
+                    message_count=0,
+                    document_count=0,
+                    total_tokens_used=0,
+                    ai_configuration={}
+                )
+                session.add(new_thread)
+                await session.commit()
+                await session.refresh(new_thread)
+                thread_id = new_thread.id
+                logger.info(f"Created new document thread {thread_id} for user {current_user.id}")
+        else:
+            # Verify the provided thread exists and belongs to the user
+            stmt = select(ChatThread).where(ChatThread.id == thread_id)
+            result = await session.execute(stmt)
+            existing_thread = result.scalar_one_or_none()
+            
+            if not existing_thread:
+                raise HTTPException(status_code=404, detail=f"Thread {thread_id} not found")
+            
+            if existing_thread.user_id != current_user.id:
+                raise HTTPException(status_code=403, detail=f"Thread {thread_id} does not belong to current user")
+        
+        # Ensure thread_id is not None at this point
+        assert thread_id is not None, "thread_id should not be None after thread handling"
         
         # Process the document
         document = await document_processor.process_uploaded_file(

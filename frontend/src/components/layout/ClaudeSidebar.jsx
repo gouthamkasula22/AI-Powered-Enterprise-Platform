@@ -12,6 +12,8 @@ const ClaudeSidebar = ({ isOpen }) => {
   const [chatHistory, setChatHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Function to format date
   const formatDate = (dateString) => {
@@ -94,6 +96,50 @@ const ClaudeSidebar = ({ isOpen }) => {
   useEffect(() => {
     fetchChatHistory();
   }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Delete conversation
+  const handleDeleteConversation = async (conversationId) => {
+    setIsDeleting(true);
+    try {
+      await axios.delete(`/api/conversations/${conversationId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Remove from local state
+      setChatHistory(prev => prev.filter(chat => chat.id !== conversationId));
+      
+      // If we're currently viewing this conversation, redirect to new chat
+      if (window.location.pathname === `/chat/${conversationId}`) {
+        navigate('/chat/new');
+      }
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      setError('Failed to delete conversation');
+    } finally {
+      setIsDeleting(false);
+      setShowDeleteModal(null);
+    }
+  };
+
+  // Archive conversation
+  const handleArchiveConversation = async (conversationId) => {
+    try {
+      await axios.patch(`/api/conversations/${conversationId}/archive`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      // Remove from local state (archived conversations are hidden by default)
+      setChatHistory(prev => prev.filter(chat => chat.id !== conversationId));
+      
+      // If we're currently viewing this conversation, redirect to new chat
+      if (window.location.pathname === `/chat/${conversationId}`) {
+        navigate('/chat/new');
+      }
+    } catch (error) {
+      console.error('Error archiving conversation:', error);
+      setError('Failed to archive conversation');
+    }
+  };
   
   const handleLogout = async () => {
     try {
@@ -160,16 +206,48 @@ const ClaudeSidebar = ({ isOpen }) => {
             ) : (
               <>
                 {chatHistory.map(chat => (
-                  <Link
-                    key={chat.id}
-                    to={`/chat/${chat.id}`}
-                    className="block px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-md cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="truncate">{chat.title}</span>
-                      <span className="text-xs text-gray-500">{chat.date}</span>
+                  <div key={chat.id} className="group relative">
+                    <Link
+                      to={`/chat/${chat.id}`}
+                      className="block px-3 py-2 text-sm text-gray-300 hover:bg-gray-800 rounded-md cursor-pointer"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="truncate flex-1 pr-2">{chat.title}</span>
+                        <span className="text-xs text-gray-500">{chat.date}</span>
+                      </div>
+                    </Link>
+                    
+                    {/* Action buttons - shown on hover */}
+                    <div className="absolute right-2 top-1/2 transform -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1">
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleArchiveConversation(chat.id);
+                        }}
+                        className="p-1 text-gray-500 hover:text-yellow-400 rounded"
+                        title="Archive conversation"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8l6 6 6-6" />
+                        </svg>
+                      </button>
+                      
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowDeleteModal(chat.id);
+                        }}
+                        className="p-1 text-gray-500 hover:text-red-400 rounded"
+                        title="Delete conversation"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
-                  </Link>
+                  </div>
                 ))}
                 {chatHistory.length === 0 && !isLoading && (
                   <div className="px-3 py-6 text-center text-sm text-gray-500">
@@ -223,6 +301,36 @@ const ClaudeSidebar = ({ isOpen }) => {
           </Link>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-mx mx-4 border border-gray-700">
+            <h3 className="text-lg font-medium text-gray-100 mb-4">Delete Conversation</h3>
+            <p className="text-sm text-gray-300 mb-6">
+              Are you sure you want to delete this conversation? This action cannot be undone.
+            </p>
+            
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowDeleteModal(null)}
+                className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-700 border border-gray-600 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                disabled={isDeleting}
+              >
+                Cancel
+              </button>
+              
+              <button
+                onClick={() => handleDeleteConversation(showDeleteModal)}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 border border-transparent rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

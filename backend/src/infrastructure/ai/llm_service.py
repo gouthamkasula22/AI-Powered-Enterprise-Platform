@@ -172,6 +172,88 @@ class LLMService:
         # If all providers failed
         raise AIError(f"All AI providers failed. Last error: {str(last_error)}")
     
+    async def generate_general_response(
+        self,
+        query: str,
+        conversation_history: Optional[List[Message]] = None,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None
+    ) -> ChatResponse:
+        """
+        Generate a general chat response without RAG context
+        
+        Args:
+            query: User's question/query
+            conversation_history: Previous messages in conversation
+            model: Specific model to use (defaults to configured default)
+            temperature: Response creativity (0.0-1.0)
+            max_tokens: Maximum response tokens
+            
+        Returns:
+            ChatResponse with generated answer and metadata
+        """
+        
+        # Use default model if not specified
+        if not model:
+            model = self.settings.default_model
+        
+        # Get model configuration
+        try:
+            model_enum = AIModel(model)
+            model_config = MODEL_CONFIGS[model_enum]
+            provider = model_config["provider"]
+        except (ValueError, KeyError):
+            logger.error(f"Invalid model specified: {model}")
+            raise AIError(f"Model {model} is not supported")
+        
+        # Set defaults
+        temperature = temperature or self.settings.default_temperature
+        max_tokens = max_tokens or min(model_config["max_tokens"], self.settings.default_max_tokens)
+        
+        # Build simple chat prompt with history
+        messages = []
+        
+        # Add conversation history
+        if conversation_history:
+            for msg in conversation_history[-10:]:  # Keep last 10 messages for context
+                messages.append({
+                    "role": msg.role,
+                    "content": msg.content
+                })
+        
+        # Add current user message
+        messages.append({
+            "role": "user", 
+            "content": query
+        })
+        
+        # Try providers in fallback chain order
+        last_error = None
+        
+        for provider_to_try in self.provider_chain:
+            if provider_to_try == provider or (provider == AIProvider.GOOGLE and provider_to_try == AIProvider.GOOGLE):
+                try:
+                    if provider_to_try == AIProvider.GOOGLE and self._gemini_client:
+                        response = await self._generate_general_with_gemini(
+                            messages, model, temperature, int(max_tokens or 4000)
+                        )
+                        return response
+                    
+                    elif provider_to_try == AIProvider.ANTHROPIC and self._anthropic_client:
+                        response = await self._generate_general_with_anthropic(
+                            messages, model, temperature, max_tokens
+                        )
+                        return response
+                        
+                except Exception as e:
+                    logger.error(f"Provider {provider_to_try.value} failed for general chat: {str(e)}")
+                    last_error = e
+                    continue
+        
+        # If all providers failed
+        raise AIError(f"All AI providers failed for general chat. Last error: {str(last_error)}")
+    
     async def stream_response(
         self,
         query: str,
@@ -246,26 +328,27 @@ class LLMService:
             # Build prompt with context and history
             prompt = self._build_gemini_prompt(query, context_window, conversation_history or [])
             
-            # Use direct function call without type checking
-            generate_content = getattr(genai, "generate_text")
+            # Use modern Gemini API with GenerativeModel
+            model_instance = genai.GenerativeModel(model_name=model or 'gemini-1.5-flash')
             
-            # Generate response using direct function call to avoid type issues
-            response = await generate_content(
-                model=model,
-                prompt=prompt,
-                temperature=temperature,
-                max_output_tokens=max_tokens
+            # Configure generation settings
+            generation_config = genai.types.GenerationConfig(
+                temperature=temperature or 0.7,
+                max_output_tokens=max_tokens or 1024
             )
             
-            # Get response text safely - since we're using direct function call
+            # Generate response using modern API
+            response = await model_instance.generate_content_async(
+                contents=prompt,
+                generation_config=generation_config
+            )
+            
+            # Get response text from modern API
             response_text = ""
-            if response is not None:
-                if hasattr(response, "text"):
-                    response_text = getattr(response, "text", "")
-                elif hasattr(response, "result"):
-                    response_text = getattr(response, "result", "")
-                else:
-                    response_text = str(response)
+            if response and response.text:
+                response_text = response.text
+            else:
+                response_text = "No response generated"
                 
             # Extract usage information (if available)
             usage = {
@@ -388,28 +471,27 @@ Please answer questions based on the provided context. If the context doesn't fu
         try:
             prompt = self._build_gemini_prompt(query, context_window, conversation_history or [])
             
-            # Use direct function call without type checking
-            # Streaming in Google Gemini API is a bit complex, so we use a workaround
-            # Simulate streaming by returning the whole response at once
-            generate_content = getattr(genai, "generate_text")
+            # Use modern Gemini API for streaming
+            model_instance = genai.GenerativeModel(model_name=model or 'gemini-1.5-flash')
             
-            # Generate full response and yield it
-            response = await generate_content(
-                model=model,
-                prompt=prompt,
-                temperature=temperature,
+            # Configure generation settings
+            generation_config = genai.types.GenerationConfig(
+                temperature=temperature or 0.7,
                 max_output_tokens=4000
             )
             
-            # Extract text safely
+            # Generate full response and yield it
+            response = await model_instance.generate_content_async(
+                contents=prompt,
+                generation_config=generation_config
+            )
+            
+            # Extract text from modern API
             response_text = ""
-            if response is not None:
-                if hasattr(response, "text"):
-                    response_text = getattr(response, "text", "")
-                elif hasattr(response, "result"):
-                    response_text = getattr(response, "result", "")
-                else:
-                    response_text = str(response)
+            if response and response.text:
+                response_text = response.text
+            else:
+                response_text = "No response generated"
                 
             # Simulate streaming by yielding in chunks
             chunk_size = 20
@@ -627,6 +709,106 @@ Please answer questions based on the provided context. If the context doesn't fu
             ))
         
         return models
+    
+    async def _generate_general_with_gemini(
+        self,
+        messages: List[Dict[str, str]],
+        model: str,
+        temperature: float,
+        max_tokens: int
+    ) -> ChatResponse:
+        """Generate general chat response using Google Gemini"""
+        
+        if not self._gemini_client:
+            raise AIError("Gemini client not initialized")
+        
+        try:
+            # Build conversation text from messages
+            conversation_text = ""
+            for msg in messages:
+                role = "Human" if msg["role"] == "user" else "Assistant"
+                conversation_text += f"{role}: {msg['content']}\n\n"
+            
+            # Use the last message as the prompt
+            prompt = messages[-1]["content"] if messages else ""
+            
+            # Use modern Gemini API with GenerativeModel
+            model_instance = genai.GenerativeModel(model_name=model or 'gemini-1.5-flash')
+            
+            response = await model_instance.generate_content_async(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=temperature,
+                    max_output_tokens=max_tokens,
+                )
+            )
+            
+            if not response.text:
+                raise AIError("Empty response from Gemini")
+            
+            return ChatResponse(
+                content=response.text,
+                model=model,
+                provider=AIProvider.GOOGLE.value,
+                usage={"total_tokens": len(response.text.split())}
+            )
+            
+        except Exception as e:
+            logger.error(f"Gemini general chat generation failed: {str(e)}")
+            raise AIError(f"Gemini general chat failed: {str(e)}")
+    
+    async def _generate_general_with_anthropic(
+        self,
+        messages: List[Dict[str, str]],
+        model: str,
+        temperature: float,
+        max_tokens: Optional[int] = None
+    ) -> ChatResponse:
+        """Generate general chat response using Anthropic Claude"""
+        
+        if not self._anthropic_client:
+            raise AIError("Anthropic client not initialized")
+        
+        try:
+            # Convert messages to Anthropic format
+            anthropic_messages = []
+            for msg in messages:
+                anthropic_messages.append({
+                    "role": msg["role"],
+                    "content": msg["content"]
+                })
+            
+            response = await self._anthropic_client.messages.create(
+                model=model or "claude-3-5-sonnet-20241022",
+                messages=anthropic_messages,
+                max_tokens=max_tokens or 4000,
+                temperature=temperature,
+                system="You are a helpful AI assistant. Respond naturally and helpfully to user questions."
+            )
+            
+            # Extract text content from response
+            content = ""
+            if response.content:
+                # Handle different block types safely
+                for block in response.content:
+                    block_dict = block.__dict__ if hasattr(block, '__dict__') else {}
+                    if 'text' in block_dict:
+                        content += block_dict['text']
+            
+            return ChatResponse(
+                content=content,
+                model=model,
+                provider=AIProvider.ANTHROPIC.value,
+                usage={
+                    "prompt_tokens": response.usage.input_tokens,
+                    "completion_tokens": response.usage.output_tokens,
+                    "total_tokens": response.usage.input_tokens + response.usage.output_tokens
+                }
+            )
+            
+        except Exception as e:
+            logger.error(f"Anthropic general chat generation failed: {str(e)}")
+            raise AIError(f"Anthropic general chat failed: {str(e)}")
 
 
 # Global LLM service instance

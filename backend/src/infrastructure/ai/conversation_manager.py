@@ -7,13 +7,16 @@ Provides intelligent conversation threading and memory management.
 
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any, Tuple
+import logging
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, desc, and_
+from sqlalchemy import select, func, desc, and_, delete, update
 from sqlalchemy.orm import selectinload
 
 from ...shared.exceptions import NotFoundError, ValidationError, ProcessingError
 from ...shared.config import get_settings
 from ..database.models import ChatThread, ChatMessage
+
+logger = logging.getLogger(__name__)
 
 
 class ConversationContext:
@@ -59,20 +62,19 @@ class ConversationManager:
     ) -> ChatThread:
         """Create a new conversation."""
         try:
-            async with self.session.begin():
-                conversation = ChatThread(
-                    user_id=user_id,
-                    title=title,
-                    category=category,
-                    tags=tags,
-                    status="active"
-                )
-                
-                self.session.add(conversation)
-                await self.session.flush()  # Get the ID
-                await self.session.refresh(conversation)
-                
-                return conversation
+            conversation = ChatThread(
+                user_id=user_id,
+                title=title,
+                category=category,
+                tags=tags,
+                status="active"
+            )
+            
+            self.session.add(conversation)
+            await self.session.flush()  # Get the ID
+            await self.session.refresh(conversation)
+            
+            return conversation
                 
         except Exception as e:
             raise ProcessingError(f"Failed to create conversation: {str(e)}")
@@ -89,29 +91,28 @@ class ConversationManager:
     ) -> ChatMessage:
         """Add a message to a conversation."""
         try:
-            async with self.session.begin():
-                message = ChatMessage(
-                    thread_id=conversation_id,
-                    user_id=user_id or 1,  # Default user for AI messages
-                    content=content,
-                    role=role,
-                    message_type=message_type,
-                    processing_time_ms=processing_time_ms or 0,
-                    ai_model=model_used
-                )
-                
-                self.session.add(message)
-                await self.session.flush()
-                await self.session.refresh(message)
-                
-                # Update conversation's last activity
-                conversation = await self.session.get(ChatThread, conversation_id)
-                if conversation:
-                    conversation.updated_at = datetime.utcnow()
-                    conversation.last_message_at = datetime.utcnow()
-                    conversation.message_count += 1
-                
-                return message
+            message = ChatMessage(
+                thread_id=conversation_id,
+                user_id=user_id or 1,  # Default user for AI messages
+                content=content,
+                role=role,
+                message_type=message_type,
+                processing_time_ms=processing_time_ms or 0,
+                ai_model=model_used
+            )
+            
+            self.session.add(message)
+            await self.session.flush()
+            await self.session.refresh(message)
+            
+            # Update conversation's last activity
+            conversation = await self.session.get(ChatThread, conversation_id)
+            if conversation:
+                conversation.updated_at = datetime.utcnow()
+                conversation.last_message_at = datetime.utcnow()
+                conversation.message_count += 1
+            
+            return message
                 
         except Exception as e:
             raise ProcessingError(f"Failed to add message: {str(e)}")
@@ -146,9 +147,10 @@ class ConversationManager:
         category: Optional[str] = None,
         status: Optional[str] = None,
         page: int = 1,
-        per_page: int = 20
+        per_page: int = 20,
+        include_archived: bool = False
     ) -> List[ChatThread]:
-        """List conversations for a user."""
+        """List conversations for a user. Excludes archived/deleted conversations by default."""
         try:
             query = select(ChatThread).where(ChatThread.user_id == user_id)
             
@@ -157,6 +159,9 @@ class ConversationManager:
             
             if status:
                 query = query.where(ChatThread.status == status)
+            elif not include_archived:
+                # Exclude deleted conversations by default
+                query = query.where(ChatThread.status != 'deleted')
             
             # Order by most recent activity
             query = (
@@ -242,3 +247,74 @@ class ConversationManager:
             
         except Exception as e:
             raise ProcessingError(f"Failed to get conversation context: {str(e)}")
+
+    async def delete_conversation(self, conversation_id: int, user_id: int) -> bool:
+        """
+        Delete a conversation thread and all its messages.
+        
+        Args:
+            conversation_id: The conversation thread ID
+            user_id: The user ID (for security verification)
+            
+        Returns:
+            bool: True if deletion was successful
+        """
+        try:
+            # First verify the conversation exists and belongs to the user
+            conversation = await self.get_conversation(conversation_id, user_id)
+            if not conversation:
+                return False
+            
+            # Delete all messages in the conversation first
+            messages_delete = delete(ChatMessage).where(ChatMessage.thread_id == conversation_id)
+            await self.session.execute(messages_delete)
+            
+            # Delete the conversation thread
+            conversation_delete = delete(ChatThread).where(
+                and_(ChatThread.id == conversation_id, ChatThread.user_id == user_id)
+            )
+            await self.session.execute(conversation_delete)
+            
+            await self.session.commit()
+            return True
+            
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error deleting conversation {conversation_id}: {str(e)}")
+            return False
+
+    async def soft_delete_conversation(self, conversation_id: int, user_id: int) -> bool:
+        """
+        Soft delete a conversation (mark as deleted but keep in database).
+        
+        Args:
+            conversation_id: The conversation thread ID
+            user_id: The user ID (for security verification)
+            
+        Returns:
+            bool: True if soft deletion was successful
+        """
+        try:
+            # Update the conversation status to deleted
+            update_stmt = (
+                update(ChatThread)
+                .where(and_(ChatThread.id == conversation_id, ChatThread.user_id == user_id))
+                .values(
+                    status='deleted',
+                    archived_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow()
+                )
+            )
+            
+            result = await self.session.execute(update_stmt)
+            
+            if result.rowcount == 0:
+                return False
+                
+            await self.session.commit()
+            return True
+            
+        except Exception as e:
+            await self.session.rollback()
+            logger.error(f"Error soft deleting conversation {conversation_id}: {str(e)}")
+            return False

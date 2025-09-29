@@ -134,8 +134,8 @@ const ProfileView = ({ user, onProfileUpdate }) => {
                   <dt className="text-sm font-medium text-gray-700">Account Role</dt>
                   <dd className="text-gray-900">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      getUserRole() === 'SUPERADMIN' ? 'bg-purple-100 text-purple-800' :
-                      getUserRole() === 'ADMIN' ? 'bg-blue-100 text-blue-800' :
+                      ['SUPERADMIN', 'superadmin'].includes(getUserRole()) ? 'bg-purple-100 text-purple-800' :
+                      ['ADMIN', 'admin'].includes(getUserRole()) ? 'bg-blue-100 text-blue-800' :
                       'bg-gray-100 text-gray-800'
                     }`}>
                       {getUserRole()}

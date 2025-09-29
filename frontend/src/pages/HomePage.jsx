@@ -29,7 +29,7 @@ const HomePage = () => {
                 </Link>
                 
                 {/* Admin Navigation */}
-                {(user?.role === 'ADMIN' || user?.role === 'SUPERADMIN') && (
+                {(['ADMIN', 'admin', 'SUPERADMIN', 'superadmin'].includes(user?.role)) && (
                   <>
                     <Link 
                       to="/admin" 
@@ -50,8 +50,8 @@ const HomePage = () => {
               {/* Role Display */}
               <div className="mt-4">
                 <span className={`inline-flex px-3 py-1 text-sm font-semibold rounded-full ${
-                  user?.role === 'SUPERADMIN' ? 'bg-purple-100 text-purple-800' :
-                  user?.role === 'ADMIN' ? 'bg-blue-100 text-blue-800' :
+                  ['SUPERADMIN', 'superadmin'].includes(user?.role) ? 'bg-purple-100 text-purple-800' :
+                  ['ADMIN', 'admin'].includes(user?.role) ? 'bg-blue-100 text-blue-800' :
                   'bg-gray-100 text-gray-800'
                 }`}>
                   Role: {user?.role || 'USER'}
