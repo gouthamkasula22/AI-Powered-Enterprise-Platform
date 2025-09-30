@@ -25,6 +25,9 @@ const ClaudeChatPage = () => {
   const [uploading, setUploading] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [loadingDocuments, setLoadingDocuments] = useState(false);
+  const [selectedDocuments, setSelectedDocuments] = useState([]);
+  const [showDocumentSelector, setShowDocumentSelector] = useState(false);
+  const [selectedModel, setSelectedModel] = useState('gemini'); // Default to Gemini
 
   // Function to fetch user's documents
   const fetchDocuments = async () => {
@@ -150,12 +153,26 @@ const ClaudeChatPage = () => {
     fetchConversation();
   }, [threadId, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch documents when document manager is opened
+  // Fetch documents for admin users on mount and when user changes
+  useEffect(() => {
+    if (user?.role?.toLowerCase() === 'admin' && token && documents.length === 0) {
+      fetchDocuments();
+    }
+  }, [user, token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch documents when document manager is opened (refresh in case of new uploads)
   useEffect(() => {
     if (showDocumentManager && user?.role?.toLowerCase() === 'admin') {
       fetchDocuments();
     }
   }, [showDocumentManager]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fetch documents when document selector is opened (refresh in case of new uploads)
+  useEffect(() => {
+    if (showDocumentSelector && user?.role?.toLowerCase() === 'admin') {
+      fetchDocuments();
+    }
+  }, [showDocumentSelector]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Function to handle sending messages
   const handleSendMessage = async (e) => {
@@ -202,10 +219,27 @@ const ClaudeChatPage = () => {
           setChatTitle(newTitle);
           
           // Send first message
-          const messageResponse = await axios.post(`/api/conversations/${newThreadId}/messages`, {
+          // Automatically use RAG mode if documents are selected
+          const effectiveChatMode = selectedDocuments.length > 0 ? 'rag' : chatMode;
+          
+          const messagePayload = {
             content: messageContent,
-            chat_mode: chatMode
-          }, {
+            chat_mode: effectiveChatMode,
+            selected_documents: selectedDocuments.map(doc => doc.id),
+            model: selectedModel
+          };
+          console.log('🔍 DEBUG: Message payload being sent:', JSON.stringify(messagePayload, null, 2));
+          console.log('🔍 DEBUG: Selected documents before mapping:', selectedDocuments);
+          console.log('🔍 DEBUG: Selected document IDs:', selectedDocuments.map(doc => doc.id));
+          console.log('🔍 DEBUG: Effective chat mode:', messagePayload.chat_mode);
+          
+          // Use LangChain endpoint when documents are selected for better RAG processing
+          const endpoint = selectedDocuments.length > 0 
+            ? `/api/conversations/${newThreadId}/messages/langchain`
+            : `/api/conversations/${newThreadId}/messages`;
+          console.log('🔍 DEBUG: Using endpoint:', endpoint);
+          
+          const messageResponse = await axios.post(endpoint, messagePayload, {
             headers: { Authorization: `Bearer ${token}` }
           });
           
@@ -247,10 +281,10 @@ const ClaudeChatPage = () => {
           
           if (aiMessage) {
             setMessages(prev => [...prev.slice(0, -1), 
-              // Replace temp user message with real one
+              // Replace temp user message with real one - preserve original user content
               {
                 id: messageResponse.data.id,
-                content: messageResponse.data.content,
+                content: messageContent, // Use the original user message content
                 role: 'user',
                 timestamp: messageResponse.data.created_at
               },
@@ -275,11 +309,27 @@ const ClaudeChatPage = () => {
         // Existing conversation
         try {
           console.log('Making API call to send message to existing conversation');
-          // Send message to existing conversation
-          const messageResponse = await axios.post(`/api/conversations/${threadId}/messages`, {
+          
+          // Automatically use RAG mode if documents are selected
+          const effectiveChatMode = selectedDocuments.length > 0 ? 'rag' : chatMode;
+          
+          const messagePayload = {
             content: messageContent,
-            chat_mode: chatMode
-          }, {
+            chat_mode: effectiveChatMode,
+            selected_documents: selectedDocuments.map(doc => doc.id),
+            model: selectedModel
+          };
+          console.log('🔍 DEBUG: Existing conversation payload:', JSON.stringify(messagePayload, null, 2));
+          console.log('🔍 DEBUG: Selected documents for existing:', selectedDocuments);
+          
+          // Use LangChain endpoint when documents are selected for better RAG processing
+          const endpoint = selectedDocuments.length > 0 
+            ? `/api/conversations/${threadId}/messages/langchain`
+            : `/api/conversations/${threadId}/messages`;
+          console.log('🔍 DEBUG: Using endpoint for existing conversation:', endpoint);
+          
+          // Send message to existing conversation
+          const messageResponse = await axios.post(endpoint, messagePayload, {
             headers: { Authorization: `Bearer ${token}` }
           });
           console.log('Message sent:', messageResponse.data);
@@ -320,10 +370,10 @@ const ClaudeChatPage = () => {
           if (aiMessage) {
             
             setMessages(prev => [...prev.slice(0, -1), 
-              // Replace temp user message with real one
+              // Replace temp user message with real one - preserve original user content
               {
                 id: messageResponse.data.id,
-                content: messageResponse.data.content,
+                content: messageContent, // Use the original user message content
                 role: 'user',
                 timestamp: messageResponse.data.created_at
               },
@@ -422,26 +472,14 @@ const ClaudeChatPage = () => {
         
         {/* Welcome Header - Only show when no messages */}
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center pt-20 pb-12">
-            <div className="text-orange-400 text-4xl mb-2">✧</div>
-            <h1 className={`text-4xl font-light ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-6`}>Welcome to Chat Assistant</h1>
-            <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'} text-center max-w-md mb-8`}>
-              I'm here to help with your questions about user authentication, security, and account management.
+          <div className="flex flex-col items-center justify-center pt-24 pb-16">
+            <div className="text-orange-400 text-6xl mb-4">✧</div>
+            <h1 className={`text-5xl font-light ${isDarkMode ? 'text-gray-100' : 'text-gray-900'} mb-6`}>
+              Intelligent Chat Assistant
+            </h1>
+            <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'} text-center max-w-lg text-lg leading-relaxed`}>
+              Start a conversation or upload documents to get contextual, intelligent responses powered by advanced AI.
             </p>
-            <div className="flex flex-wrap gap-3 justify-center max-w-2xl">
-              <button className={`px-3 py-2 ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'} rounded-md text-sm flex items-center`}>
-                Help with authentication flows
-              </button>
-              <button className={`px-3 py-2 ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'} rounded-md text-sm flex items-center`}>
-                Explain password security
-              </button>
-              <button className={`px-3 py-2 ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'} rounded-md text-sm flex items-center`}>
-                Review my account settings
-              </button>
-              <button className={`px-3 py-2 ${isDarkMode ? 'bg-gray-800 hover:bg-gray-700 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-800'} rounded-md text-sm flex items-center`}>
-                Help with access control
-              </button>
-            </div>
           </div>
         )}
         
@@ -455,11 +493,11 @@ const ClaudeChatPage = () => {
               >
                 <div className="max-w-3xl mx-auto px-4">
                   <div className="flex items-center mb-3">
-                    <div className={`w-6 h-6 rounded-full ${msg.role === 'assistant' ? 'bg-orange-500/20 text-orange-500' : 'bg-gray-700'} flex items-center justify-center text-sm mr-2`}>
-                      {msg.role === 'assistant' ? 'C' : user?.name?.charAt(0) || 'U'}
+                    <div className={`w-6 h-6 rounded-full ${msg.role === 'assistant' ? (selectedModel === 'claude' ? 'bg-orange-500/20 text-orange-500' : 'bg-blue-500/20 text-blue-500') : 'bg-gray-700'} flex items-center justify-center text-sm mr-2`}>
+                      {msg.role === 'assistant' ? (selectedModel === 'claude' ? 'C' : 'G') : user?.name?.charAt(0) || 'U'}
                     </div>
                     <h3 className="text-sm font-medium text-gray-400">
-                      {msg.role === 'assistant' ? 'Claude' : 'You'}
+                      {msg.role === 'assistant' ? (selectedModel === 'claude' ? 'Claude' : 'Gemini') : 'You'}
                     </h3>
                   </div>
                   <div className="text-gray-100 whitespace-pre-wrap pl-8">
@@ -474,10 +512,10 @@ const ClaudeChatPage = () => {
               <div className="py-6 mb-4">
                 <div className="max-w-3xl mx-auto px-4">
                   <div className="flex items-center mb-3">
-                    <div className="w-6 h-6 rounded-full bg-orange-500/20 text-orange-500 flex items-center justify-center text-sm mr-2">
-                      C
+                    <div className={`w-6 h-6 rounded-full ${selectedModel === 'claude' ? 'bg-orange-500/20 text-orange-500' : 'bg-blue-500/20 text-blue-500'} flex items-center justify-center text-sm mr-2`}>
+                      {selectedModel === 'claude' ? 'C' : 'G'}
                     </div>
-                    <h3 className="text-sm font-medium text-gray-400">Claude</h3>
+                    <h3 className="text-sm font-medium text-gray-400">{selectedModel === 'claude' ? 'Claude' : 'Gemini'}</h3>
                   </div>
                   <div className="animate-pulse pl-8">
                     <div className="h-2 bg-gray-700 rounded w-3/4 mb-2"></div>
@@ -572,24 +610,69 @@ const ClaudeChatPage = () => {
 
             {/* Admin Tools - Only visible to admins */}
             {user?.role?.toLowerCase() === 'admin' && (
-              <div className={`mb-4 p-4 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
-                <h3 className={`font-medium mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Admin Tools</h3>
-                <div className="flex gap-2">
+              <div className={`mb-6 p-5 rounded-xl border ${isDarkMode ? 'bg-gray-800/50 border-gray-700/50 backdrop-blur-sm' : 'bg-gray-50/80 border-gray-200/50 backdrop-blur-sm'}`}>
+                <div className="flex items-center mb-3">
+                  <div className="w-2 h-2 bg-orange-400 rounded-full mr-2"></div>
+                  <h3 className={`font-medium ${isDarkMode ? 'text-gray-200' : 'text-gray-800'}`}>Document Management</h3>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
                   <button
                     onClick={() => setShowUploadModal(true)}
-                    className="px-3 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm"
+                    className="px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all duration-200 text-sm font-medium shadow-sm hover:shadow-md flex items-center justify-center"
                   >
-                    Upload Documents
+                    Upload
                   </button>
                   <button
                     onClick={() => setShowDocumentManager(true)}
-                    className="px-3 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors text-sm"
+                    className="px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 text-sm font-medium shadow-sm hover:shadow-md flex items-center justify-center"
                   >
-                    Manage Documents
+                    Manage
+                  </button>
+                  <button
+                    onClick={() => setShowDocumentSelector(true)}
+                    className={`px-4 py-2.5 ${selectedDocuments.length > 0 ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-600 hover:bg-orange-700'} text-white rounded-lg transition-all duration-200 text-sm font-medium shadow-sm hover:shadow-md flex items-center justify-center`}
+                  >
+                    Select {selectedDocuments.length > 0 ? `(${selectedDocuments.length})` : ''}
                   </button>
                 </div>
               </div>
             )}
+
+            {/* Selected Documents Display */}
+            {selectedDocuments.length > 0 && (
+              <div className={`mb-4 p-3 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-sm font-medium ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                    Selected Documents ({selectedDocuments.length}):
+                  </span>
+                  <button
+                    onClick={() => setSelectedDocuments([])}
+                    className={`text-xs px-2 py-1 rounded ${isDarkMode ? 'bg-gray-600 text-white hover:bg-gray-500' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  >
+                    Clear All
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {selectedDocuments.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm ${
+                        isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-800'
+                      }`}
+                    >
+                      <span>{doc.filename}</span>
+                      <button
+                        onClick={() => setSelectedDocuments(prev => prev.filter(d => d.id !== doc.id))}
+                        className="text-xs opacity-70 hover:opacity-100"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSendMessage} className="flex flex-col relative">
               <div className="relative rounded-md shadow-sm mb-2">
                 <textarea
@@ -599,7 +682,11 @@ const ClaudeChatPage = () => {
                     console.log('Input changed:', e.target.value);
                     setMessage(e.target.value);
                   }}
-                  placeholder={chatMode === 'general' ? "Ask me anything..." : "Ask about your documents..."}
+                  placeholder={
+                    selectedDocuments.length > 0 
+                      ? `Ask about your ${selectedDocuments.length} selected document${selectedDocuments.length > 1 ? 's' : ''}...` 
+                      : "Start a conversation..."
+                  }
                   className={`block w-full rounded-lg py-3 px-4 ${
                     isDarkMode 
                       ? 'bg-gray-800 text-gray-100 focus:ring-gray-500 border-gray-700' 
@@ -632,9 +719,36 @@ const ClaudeChatPage = () => {
                   </button>
                 </div>
               </div>
+              
+              {/* Model Selector */}
+              <div className="flex justify-between items-center mb-2">
+                <div className="flex items-center space-x-2">
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    className={`text-sm px-3 py-1.5 rounded-lg border ${
+                      isDarkMode 
+                        ? 'bg-gray-800 border-gray-700 text-gray-300 focus:border-orange-500' 
+                        : 'bg-white border-gray-300 text-gray-700 focus:border-blue-500'
+                    } focus:outline-none focus:ring-1 transition-colors`}
+                  >
+                    <option value="claude">Claude Sonnet 3.5</option>
+                    <option value="gemini">Gemini Pro</option>
+                  </select>
+                  <span className={`text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                    AI Model
+                  </span>
+                </div>
+                {selectedDocuments.length > 0 && (
+                  <div className={`text-xs ${isDarkMode ? 'text-green-400' : 'text-green-600'}`}>
+                    📎 {selectedDocuments.length} document{selectedDocuments.length > 1 ? 's' : ''} selected
+                  </div>
+                )}
+              </div>
+              
               <div className="flex justify-between items-center text-xs text-gray-500">
                 <div>
-                  <span>Claude can make mistakes. Consider checking important information.</span>
+                  <span>{selectedModel === 'claude' ? 'Claude' : 'Gemini'} can make mistakes. Consider checking important information.</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button className="hover:text-gray-300">
@@ -647,25 +761,6 @@ const ClaudeChatPage = () => {
             </form>
           </div>
         </div>
-          
-        {/* Quick actions - only show if messages empty */}
-        {messages.length === 0 && (
-          <div className="bg-black py-4">
-            <div className="max-w-3xl mx-auto w-full">
-              <div className="flex flex-wrap gap-2 justify-center">
-                <button className="px-3 py-1.5 bg-gray-900 border border-gray-800 hover:bg-gray-800 rounded text-sm text-gray-300">
-                  <span className="mr-2">🔐</span>Secure password tips
-                </button>
-                <button className="px-3 py-1.5 bg-gray-900 border border-gray-800 hover:bg-gray-800 rounded text-sm text-gray-300">
-                  <span className="mr-2">🔄</span>Two-factor authentication help
-                </button>
-                <button className="px-3 py-1.5 bg-gray-900 border border-gray-800 hover:bg-gray-800 rounded text-sm text-gray-300">
-                  <span className="mr-2">�</span>How to update my profile
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Document Upload Modal - Only for admins */}
@@ -806,6 +901,138 @@ const ClaudeChatPage = () => {
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Selector Modal - Only for admins */}
+      {showDocumentSelector && user?.role?.toLowerCase() === 'admin' && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className={`p-6 rounded-lg max-w-3xl w-full mx-4 max-h-[80vh] overflow-y-auto ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                Select Documents for Context
+              </h3>
+              <button
+                onClick={() => setShowDocumentSelector(false)}
+                className={`text-2xl font-bold hover:opacity-70 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                Select which documents the AI should reference when answering your questions. 
+                Selected documents will be used as context for better, more accurate responses.
+              </p>
+            </div>
+            
+            {loadingDocuments ? (
+              <div className={`text-center py-8 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                Loading documents...
+              </div>
+            ) : documents.length === 0 ? (
+              <div className={`text-center py-8 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                <div className="text-4xl mb-4">📄</div>
+                <p className="text-lg mb-2">No documents available</p>
+                <p className="text-sm">Upload documents first to use them as context</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {documents.map((doc) => {
+                  const isSelected = selectedDocuments.some(selected => selected.id === doc.id);
+                  return (
+                    <div 
+                      key={doc.id} 
+                      className={`p-4 rounded-lg border cursor-pointer transition-all ${
+                        isSelected 
+                          ? isDarkMode 
+                            ? 'bg-blue-700 border-blue-500' 
+                            : 'bg-blue-50 border-blue-300'
+                          : isDarkMode 
+                            ? 'bg-gray-700 border-gray-600 hover:bg-gray-600' 
+                            : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                      }`}
+                      onClick={() => {
+                        if (isSelected) {
+                          setSelectedDocuments(prev => prev.filter(d => d.id !== doc.id));
+                        } else {
+                          setSelectedDocuments(prev => [...prev, doc]);
+                        }
+                      }}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}} // Handled by parent div onClick
+                              className="w-4 h-4 text-blue-600 rounded"
+                            />
+                            <div>
+                              <h4 className={`font-medium ${
+                                isDarkMode ? 'text-white' : 'text-gray-900'
+                              }`}>
+                                {doc.filename}
+                              </h4>
+                              <div className={`text-sm mt-1 ${
+                                isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                              }`}>
+                                <div className="flex flex-wrap gap-4">
+                                  <span>Size: {doc.size_bytes ? Math.round(doc.size_bytes / 1024) + ' KB' : 'Unknown'}</span>
+                                  <span>Type: {doc.file_type || 'Unknown'}</span>
+                                  <span>Words: {doc.word_count || 'Unknown'}</span>
+                                </div>
+                                <div className="mt-1">
+                                  Uploaded: {doc.created_at ? new Date(doc.created_at).toLocaleDateString() : 'Unknown'}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        {isSelected && (
+                          <div className={`ml-4 px-2 py-1 rounded text-xs font-medium ${
+                            isDarkMode ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            Selected
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            
+            <div className="flex justify-between items-center gap-4 mt-6">
+              <div className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                {selectedDocuments.length} document{selectedDocuments.length !== 1 ? 's' : ''} selected
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setSelectedDocuments([])}
+                  disabled={selectedDocuments.length === 0}
+                  className={`px-4 py-2 rounded transition-colors ${
+                    selectedDocuments.length === 0
+                      ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                      : isDarkMode 
+                        ? 'bg-gray-600 text-white hover:bg-gray-700' 
+                        : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+                  }`}
+                >
+                  Clear All
+                </button>
+                <button
+                  onClick={() => setShowDocumentSelector(false)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         </div>

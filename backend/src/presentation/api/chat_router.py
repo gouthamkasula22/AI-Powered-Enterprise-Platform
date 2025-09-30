@@ -53,6 +53,7 @@ class SendMessageRequest(BaseModel):
     message_type: Optional[str] = Field("text", description="Type of message")
     context: Optional[Dict[str, Any]] = Field(None, description="Additional context for the message")
     chat_mode: Optional[str] = Field("general", description="Chat mode: 'general' for normal AI chat, 'rag' for document-based chat")
+    selected_documents: Optional[List[int]] = Field(None, description="List of selected document IDs for context-specific queries")
 
 
 class ConversationResponse(BaseModel):
@@ -468,6 +469,11 @@ async def send_message(
 ):
     """Send a message to a conversation."""
     try:
+        logger.info(f"🔍 DEBUG: Received message request - Content: {request.content}")
+        logger.info(f"🔍 DEBUG: Selected documents: {request.selected_documents}")
+        logger.info(f"🔍 DEBUG: Chat mode: {request.chat_mode}")
+        logger.info(f"🔍 DEBUG: Request model fields: {request.model_fields}")
+        
         (conversation_manager, query_processor, 
          context_manager, prompt_manager, llm_service) = services
         
@@ -512,15 +518,52 @@ async def send_message(
             # Query documents directly from the database for this conversation
             from sqlalchemy import text
             
-            query = text("""
-                SELECT id, filename, extracted_text, word_count, created_at 
-                FROM chat_documents 
-                WHERE thread_id = :thread_id 
-                AND processing_status = 'completed'
-                AND extracted_text IS NOT NULL
-                LIMIT 10
-            """)
-            result = await session.execute(query, {"thread_id": conversation_id})
+            # Build query based on whether specific documents are selected
+            if request.selected_documents:
+                logger.info(f"Using selected documents: {request.selected_documents}")
+                # Document IDs are now integers, no conversion needed
+                try:
+                    doc_ids = request.selected_documents
+                    placeholders = ','.join([':doc_id_' + str(i) for i in range(len(doc_ids))])
+                    # Allow cross-thread document access for selected documents - user can reference any of their documents
+                    query = text(f"""
+                        SELECT id, filename, extracted_text, word_count, created_at 
+                        FROM chat_documents 
+                        WHERE user_id = :user_id 
+                        AND id IN ({placeholders})
+                        AND processing_status = 'completed'
+                        AND extracted_text IS NOT NULL
+                        ORDER BY created_at DESC
+                        LIMIT 10
+                    """)
+                    params = {"user_id": user_id}
+                    for i, doc_id in enumerate(doc_ids):
+                        params[f"doc_id_{i}"] = doc_id
+                    result = await session.execute(query, params)
+                except (ValueError, TypeError) as e:
+                    logger.error(f"Invalid document IDs provided: {request.selected_documents}, error: {e}")
+                    # Fall back to all user documents if IDs are invalid
+                    query = text("""
+                        SELECT id, filename, extracted_text, word_count, created_at 
+                        FROM chat_documents 
+                        WHERE user_id = :user_id 
+                        AND processing_status = 'completed'
+                        AND extracted_text IS NOT NULL
+                        LIMIT 10
+                    """)
+                    result = await session.execute(query, {"user_id": user_id})
+            else:
+                # Use all available documents if none selected
+                query = text("""
+                    SELECT id, filename, extracted_text, word_count, created_at 
+                    FROM chat_documents 
+                    WHERE thread_id = :thread_id 
+                    AND processing_status = 'completed'
+                    AND extracted_text IS NOT NULL
+                    LIMIT 10
+                """)
+                result = await session.execute(query, {"thread_id": conversation_id})
+            
             documents = result.fetchall()
             
             logger.info(f"Found {len(documents)} documents for conversation {conversation_id}")
@@ -719,7 +762,8 @@ async def send_message_langchain(
         langchain_response = await langchain_service.chat(
             message=request.content,
             thread_id=conversation_id,
-            session_id=f"user_{user_id}_conv_{conversation_id}"
+            session_id=f"user_{user_id}_conv_{conversation_id}",
+            selected_documents=request.selected_documents
         )
         
         processing_time = (datetime.now() - start_time).total_seconds() * 1000
