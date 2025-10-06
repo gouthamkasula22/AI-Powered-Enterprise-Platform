@@ -38,7 +38,6 @@ const ProfileEdit = ({ user, onProfileUpdate, onCancel }) => {
         return acc
       }, {})
       
-      console.log('Sending profile data:', cleanedData)
       const result = await updateProfile(cleanedData)
       
       if (result.success) {

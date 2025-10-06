@@ -177,12 +177,8 @@ const ClaudeChatPage = () => {
 
   // Function to handle sending messages
   const handleSendMessage = async (e) => {
-    console.log('sendMessage called with:', message);
-    console.log('token:', !!token, 'isLoading:', isLoading, 'message.trim():', !!message.trim());
-    
     e.preventDefault();
     if (!message.trim() || isLoading || !token) {
-      console.log('Early return - conditions not met');
       return;
     }
 
@@ -207,16 +203,8 @@ const ClaudeChatPage = () => {
     
     const isImageRequest = message.trim().startsWith('/image ') || 
                           imageKeywords.some(keyword => trimmedMessage.includes(keyword));
-    
-    console.log('🎨 DEBUG - Image detection:', {
-      message: message,
-      trimmedMessage: trimmedMessage,
-      isImageRequest: isImageRequest,
-      matchingKeywords: imageKeywords.filter(keyword => trimmedMessage.includes(keyword))
-    });
 
     if (isImageRequest) {
-      console.log('🎨 Image request detected! Triggering image generation...');
       await handleImageGeneration(message.trim());
       return;
     }
@@ -241,7 +229,6 @@ const ClaudeChatPage = () => {
         const newTitle = messageContent.length > 30 ? messageContent.substring(0, 30) + '...' : messageContent;
         
         try {
-          console.log('Making API call to create conversation');
           // Create new conversation
           const conversationResponse = await axios.post('/api/conversations', {
             title: newTitle,
@@ -249,10 +236,21 @@ const ClaudeChatPage = () => {
           }, {
             headers: { Authorization: `Bearer ${token}` }
           });
-          console.log('Conversation created:', conversationResponse.data);
+          
+          if (!conversationResponse.data || !conversationResponse.data.id) {
+            throw new Error('Invalid response from server: no conversation ID received');
+          }
           
           const newThreadId = conversationResponse.data.id;
           setChatTitle(newTitle);
+          
+          // Dispatch event to notify sidebar to refresh conversation list
+          window.dispatchEvent(new CustomEvent('conversationCreated', { 
+            detail: { 
+              id: newThreadId, 
+              title: newTitle 
+            } 
+          }));
           
           // Send first message
           // Automatically use RAG mode if documents are selected
@@ -264,16 +262,11 @@ const ClaudeChatPage = () => {
             selected_documents: selectedDocuments.map(doc => doc.id),
             model: selectedModel
           };
-          console.log('🔍 DEBUG: Message payload being sent:', JSON.stringify(messagePayload, null, 2));
-          console.log('🔍 DEBUG: Selected documents before mapping:', selectedDocuments);
-          console.log('🔍 DEBUG: Selected document IDs:', selectedDocuments.map(doc => doc.id));
-          console.log('🔍 DEBUG: Effective chat mode:', messagePayload.chat_mode);
           
           // Use LangChain endpoint when documents are selected for better RAG processing
           const endpoint = selectedDocuments.length > 0 
             ? `/api/conversations/${newThreadId}/messages/langchain`
             : `/api/conversations/${newThreadId}/messages`;
-          console.log('🔍 DEBUG: Using endpoint:', endpoint);
           
           const messageResponse = await axios.post(endpoint, messagePayload, {
             headers: { Authorization: `Bearer ${token}` }
@@ -344,8 +337,6 @@ const ClaudeChatPage = () => {
       } else {
         // Existing conversation
         try {
-          console.log('Making API call to send message to existing conversation');
-          
           // Automatically use RAG mode if documents are selected
           const effectiveChatMode = selectedDocuments.length > 0 ? 'rag' : chatMode;
           
@@ -355,20 +346,16 @@ const ClaudeChatPage = () => {
             selected_documents: selectedDocuments.map(doc => doc.id),
             model: selectedModel
           };
-          console.log('🔍 DEBUG: Existing conversation payload:', JSON.stringify(messagePayload, null, 2));
-          console.log('🔍 DEBUG: Selected documents for existing:', selectedDocuments);
           
           // Use LangChain endpoint when documents are selected for better RAG processing
           const endpoint = selectedDocuments.length > 0 
             ? `/api/conversations/${threadId}/messages/langchain`
             : `/api/conversations/${threadId}/messages`;
-          console.log('🔍 DEBUG: Using endpoint for existing conversation:', endpoint);
           
           // Send message to existing conversation
           const messageResponse = await axios.post(endpoint, messagePayload, {
             headers: { Authorization: `Bearer ${token}` }
           });
-          console.log('Message sent:', messageResponse.data);
           
           // Similar approach as with new conversations
           let aiMessage;
@@ -473,8 +460,6 @@ const ClaudeChatPage = () => {
         }
       }
       
-      console.log('🎨 Extracted image prompt:', imagePrompt);
-      
       // Add user message to UI
       const userMessage = {
         id: `temp-user-${Date.now()}`,
@@ -502,20 +487,12 @@ const ClaudeChatPage = () => {
         thread_id: threadId === 'new' ? null : parseInt(threadId) || null
       };
       
-      console.log('🎨 Sending image generation request:', requestPayload);
       const task = await generateImage(requestPayload);
-      
-      console.log('🎨 Image generation task started:', task);
       
       // Poll for completion
       const pollProgress = setInterval(async () => {
         try {
           const status = await getTaskStatus(task.task_id);
-          console.log('🎨 Task status:', status);
-          console.log('🎨 Status result:', status.result);
-          console.log('🎨 Status image_data:', status.image_data);
-          console.log('🎨 Image base64 from result:', status.result?.image_base64 ? 'PRESENT' : 'MISSING');
-          console.log('🎨 Image base64 from image_data:', status.image_data?.image_base64 ? 'PRESENT' : 'MISSING');
           
           if (status.status === 'completed') {
             clearInterval(pollProgress);
@@ -883,7 +860,6 @@ const ClaudeChatPage = () => {
                   rows={1}
                   value={message}
                   onChange={(e) => {
-                    console.log('Input changed:', e.target.value);
                     setMessage(e.target.value);
                   }}
                   placeholder={
@@ -898,9 +874,7 @@ const ClaudeChatPage = () => {
                   } focus:outline-none focus:ring-1 border resize-none`}
                   style={{ minHeight: '56px' }}
                   onKeyDown={(e) => {
-                    console.log('Key pressed:', e.key, 'Shift:', e.shiftKey, 'Message:', message);
                     if (e.key === 'Enter' && !e.shiftKey) {
-                      console.log('Enter key pressed, calling handleSendMessage');
                       e.preventDefault();
                       handleSendMessage(e);
                     }
@@ -912,7 +886,6 @@ const ClaudeChatPage = () => {
                     disabled={!message.trim() || isLoading}
                     className={`p-1 rounded-md ${!message.trim() || isLoading ? 'text-gray-600' : 'text-orange-400 hover:text-orange-500'}`}
                     onClick={(e) => {
-                      console.log('Send button clicked');
                       handleSendMessage(e);
                     }}
                   >

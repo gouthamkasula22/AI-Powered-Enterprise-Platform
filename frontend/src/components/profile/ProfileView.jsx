@@ -6,13 +6,7 @@ const ProfileView = ({ user, onProfileUpdate }) => {
   const { getUserRole } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
 
-  // Debug: Log when user prop changes
-  useEffect(() => {
-    console.log('ProfileView received user data:', user)
-  }, [user])
-
   const handleEditComplete = (updatedUser) => {
-    console.log('ProfileView handleEditComplete called with:', updatedUser)
     setIsEditing(false)
     if (updatedUser) {
       onProfileUpdate(updatedUser)

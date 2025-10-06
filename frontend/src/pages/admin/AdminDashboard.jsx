@@ -23,9 +23,6 @@ const AdminDashboard = () => {
   const fetchDashboardStats = async () => {
     try {
       const token = localStorage.getItem('access_token')
-      console.log('🔍 Attempting to fetch stats...')
-      console.log('Token exists:', !!token)
-      console.log('API URL:', `${import.meta.env.VITE_API_URL}/api/admin/users/stats`)
       const response = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/admin/users/stats`,
         {
@@ -35,7 +32,6 @@ const AdminDashboard = () => {
           }
         }
       )
-      console.log('✅ Stats API Response:', response.data)
       setStats(response.data)
       setError(null)
     } catch (error) {
@@ -50,7 +46,7 @@ const AdminDashboard = () => {
       })
       setError(`API Error: ${error.response?.status || 'Network Error'} - ${error.response?.data?.detail || error.message}`)
       // Fallback to mock data
-      console.log('📦 Using mock data as fallback')
+
       setStats({
         total_users: 125,
         active_users: 98,

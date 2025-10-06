@@ -86,10 +86,6 @@ async def initialize_services():
         else:
             logger.warning(f"Redis cache health check warning: {cache_health['message']}")
         
-        # Initialize other services (Email, etc.)
-        # TODO: Add Email service initialization
-        # TODO: Add other service initializations
-        
         logger.info("All services initialized successfully")
         return True
         
@@ -110,10 +106,6 @@ async def cleanup_services():
         # Close database connections
         await close_database()
         logger.info("Database connections closed")
-        
-        # Cleanup other services
-        # TODO: Add Email service cleanup
-        # TODO: Add other service cleanups
         
         logger.info("All services cleaned up successfully")
         

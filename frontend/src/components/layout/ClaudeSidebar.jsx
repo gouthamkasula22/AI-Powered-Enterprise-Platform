@@ -97,6 +97,19 @@ const ClaudeSidebar = ({ isOpen }) => {
     fetchChatHistory();
   }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Listen for new conversation events to refresh the list
+  useEffect(() => {
+    const handleConversationCreated = () => {
+      fetchChatHistory();
+    };
+    
+    window.addEventListener('conversationCreated', handleConversationCreated);
+    
+    return () => {
+      window.removeEventListener('conversationCreated', handleConversationCreated);
+    };
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Delete conversation
   const handleDeleteConversation = async (conversationId) => {
     setIsDeleting(true);

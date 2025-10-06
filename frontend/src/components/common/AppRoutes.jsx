@@ -3,7 +3,6 @@ import HomePage from '../../pages/HomePage'
 import LoginPage from '../../pages/LoginPage'
 import RegisterPage from '../../pages/RegisterPage'
 import DashboardPage from '../../pages/DashboardPage'
-import ChatRedirect from '../../pages/ChatRedirect'
 import ClaudeChatPage from '../../pages/ClaudeChatPage'
 import VerifyEmailPage from '../../pages/VerifyEmailPage'
 import ForgotPasswordPage from '../../pages/ForgotPasswordPage'
@@ -47,7 +46,7 @@ const AppRoutes = () => {
         path="/chat" 
         element={
           <ProtectedRoute>
-            <ChatRedirect />
+            <Navigate to="/chat/new" replace />
           </ProtectedRoute>
         } 
       />
