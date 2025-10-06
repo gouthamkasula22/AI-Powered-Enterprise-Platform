@@ -14,6 +14,7 @@ from ..config import Base
 
 if TYPE_CHECKING:
     from .message_processing_models import MessageReaction, MessageEdit, MessageVersion, AIProcessingStep, MessageSearchIndex
+    from .image_models import GeneratedImage
 
 
 class ThreadStatus(Enum):
@@ -76,6 +77,7 @@ class ChatThread(Base):
     # Relationships
     messages: Mapped[List["ChatMessage"]] = relationship("ChatMessage", back_populates="thread", cascade="all, delete-orphan")
     documents: Mapped[List["Document"]] = relationship("Document", back_populates="thread", cascade="all, delete-orphan")
+    generated_images: Mapped[List["GeneratedImage"]] = relationship("GeneratedImage", back_populates="thread", cascade="all, delete-orphan")
     
     # Self-referential relationship for thread hierarchy
     children: Mapped[List["ChatThread"]] = relationship("ChatThread", back_populates="parent", cascade="all, delete-orphan")
@@ -178,6 +180,7 @@ class ChatMessage(Base):
     versions: Mapped[List["MessageVersion"]] = relationship("MessageVersion", back_populates="message", cascade="all, delete-orphan")
     processing_steps: Mapped[List["AIProcessingStep"]] = relationship("AIProcessingStep", back_populates="message", cascade="all, delete-orphan")
     search_index: Mapped[Optional["MessageSearchIndex"]] = relationship("MessageSearchIndex", back_populates="message", cascade="all, delete-orphan", uselist=False)
+    generated_image: Mapped[Optional["GeneratedImage"]] = relationship("GeneratedImage", back_populates="message", uselist=False)
     
     # Database indexes for performance
     __table_args__ = (

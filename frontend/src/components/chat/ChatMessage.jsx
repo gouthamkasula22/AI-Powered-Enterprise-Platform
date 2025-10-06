@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import ImageMessage from '../image/ImageMessage';
 
 const ChatMessage = ({ message }) => {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -39,10 +40,26 @@ const ChatMessage = ({ message }) => {
             
             {isExpanded && (
               <div className="prose prose-sm max-w-none">
-                {isAI ? (
-                  <ReactMarkdown>{message.content}</ReactMarkdown>
-                ) : (
-                  <p>{message.content}</p>
+                {/* Regular text content */}
+                {message.content && (
+                  <div className="mb-4">
+                    {isAI ? (
+                      <ReactMarkdown>{message.content}</ReactMarkdown>
+                    ) : (
+                      <p>{message.content}</p>
+                    )}
+                  </div>
+                )}
+                
+                {/* Image content */}
+                {message.generated_image && (
+                  <div className="max-w-md">
+                    <ImageMessage 
+                      image={message.generated_image}
+                      showMetadata={true}
+                      className="border-0"
+                    />
+                  </div>
                 )}
               </div>
             )}

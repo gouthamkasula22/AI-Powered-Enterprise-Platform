@@ -1,18 +1,21 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import ClaudeSidebar from './ClaudeSidebar';
+import ImageGallery from '../image/ImageGallery';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 
 const ClaudeLayout = ({ children }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
   const { isDarkMode } = useTheme();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const toggleUserMenu = () => setIsUserMenuOpen(!isUserMenuOpen);
+  const toggleLibrary = () => setIsLibraryOpen(!isLibraryOpen);
   
   const handleLogout = async () => {
     try {
@@ -48,6 +51,15 @@ const ClaudeLayout = ({ children }) => {
             </div>
             <span className="text-sm font-medium">Chat Assistant</span>
           </div>
+          
+          {/* Library Button */}
+          <button 
+            onClick={toggleLibrary}
+            className="p-2 rounded-md text-gray-400 hover:bg-gray-800 mr-2"
+            title="Library"
+          >
+            <span className="material-icons-outlined text-xl">photo_library</span>
+          </button>
           
           {/* User Menu */}
           <div className="ml-auto relative">
@@ -133,6 +145,43 @@ const ClaudeLayout = ({ children }) => {
           </div>
         </div>
       </div>
+      
+      {/* Library Side Panel */}
+      {isLibraryOpen && (
+        <>
+          {/* Overlay */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={toggleLibrary}
+          />
+          
+          {/* Side Panel */}
+          <div className={`fixed right-0 top-0 h-full w-96 ${isDarkMode ? 'bg-gray-900' : 'bg-white'} shadow-2xl z-50 transform transition-transform duration-300 ease-in-out`}>
+            <div className="flex flex-col h-full">
+              {/* Panel Header */}
+              <div className={`flex items-center justify-between p-4 border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
+                <h2 className="text-lg font-semibold flex items-center">
+                  <span className="material-icons-outlined text-xl mr-2">photo_library</span>
+                  Library
+                </h2>
+                <button 
+                  onClick={toggleLibrary}
+                  className="p-1 rounded-md text-gray-400 hover:bg-gray-800"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              {/* Panel Content */}
+              <div className="flex-1 overflow-y-auto p-4">
+                <ImageGallery />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

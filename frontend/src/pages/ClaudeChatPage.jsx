@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import ClaudeLayout from '../components/layout/ClaudeLayout';
+import { generateImage, getTaskStatus } from '../services/ImageService';
 import axios from 'axios';
 
 // Import MockAuthContext for development if needed
@@ -182,6 +183,41 @@ const ClaudeChatPage = () => {
     e.preventDefault();
     if (!message.trim() || isLoading || !token) {
       console.log('Early return - conditions not met');
+      return;
+    }
+
+    // Check for image generation requests
+    const trimmedMessage = message.trim().toLowerCase();
+    const imageKeywords = [
+      'generate an image of', 'generate an image', 'create an image of', 'create an image', 
+      'make an image of', 'make an image', 'draw an image of', 'draw an image',
+      'generate a picture of', 'generate a picture', 'create a picture of', 'create a picture', 
+      'make a picture of', 'make a picture', 'draw a picture of', 'draw a picture',
+      'generate a photo of', 'generate a photo', 'create a photo of', 'create a photo', 
+      'make a photo of', 'make a photo',
+      'generate image of', 'generate image', 'create image of', 'create image', 
+      'make image of', 'make image', 'draw image of', 'draw image',
+      'show me an image of', 'show me an image', 'show me a picture of', 'show me a picture', 
+      'show me a photo of', 'show me a photo',
+      'can you draw', 'can you create', 'can you generate', 'can you make',
+      'i want an image of', 'i want an image', 'i want a picture of', 'i want a picture', 
+      'i want a photo of', 'i want a photo',
+      'paint', 'sketch', 'illustrate', 'visualize'
+    ];
+    
+    const isImageRequest = message.trim().startsWith('/image ') || 
+                          imageKeywords.some(keyword => trimmedMessage.includes(keyword));
+    
+    console.log('🎨 DEBUG - Image detection:', {
+      message: message,
+      trimmedMessage: trimmedMessage,
+      isImageRequest: isImageRequest,
+      matchingKeywords: imageKeywords.filter(keyword => trimmedMessage.includes(keyword))
+    });
+
+    if (isImageRequest) {
+      console.log('🎨 Image request detected! Triggering image generation...');
+      await handleImageGeneration(message.trim());
       return;
     }
     
@@ -403,6 +439,152 @@ const ClaudeChatPage = () => {
     }
   };
 
+  // Image generation handler
+  const handleImageGeneration = async (originalMessage) => {
+    try {
+      // Extract image prompt
+      let imagePrompt = originalMessage;
+      const trimmedMessage = originalMessage.toLowerCase();
+      
+      // Remove common prefixes to get the actual prompt
+      const prefixesToRemove = [
+        '/image ',
+        'generate an image of ', 'create an image of ', 'make an image of ', 'draw an image of ',
+        'generate a picture of ', 'create a picture of ', 'make a picture of ', 'draw a picture of ',
+        'generate a photo of ', 'create a photo of ', 'make a photo of ',
+        'generate image of ', 'create image of ', 'make image of ', 'draw image of ',
+        'show me an image of ', 'show me a picture of ', 'show me a photo of ',
+        'can you draw ', 'can you create ', 'can you generate ', 'can you make ',
+        'i want an image of ', 'i want a picture of ', 'i want a photo of ',
+        'generate an image', 'create an image', 'make an image', 'draw an image',
+        'generate a picture', 'create a picture', 'make a picture', 'draw a picture',
+        'generate a photo', 'create a photo', 'make a photo',
+        'generate image', 'create image', 'make image', 'draw image',
+        'show me an image', 'show me a picture', 'show me a photo',
+        'i want an image', 'i want a picture', 'i want a photo',
+        'paint ', 'sketch ', 'illustrate ', 'visualize '
+      ];
+      
+      // Find the most specific matching prefix and remove it
+      for (const prefix of prefixesToRemove.sort((a, b) => b.length - a.length)) {
+        if (trimmedMessage.startsWith(prefix)) {
+          imagePrompt = originalMessage.substring(prefix.length).trim();
+          break;
+        }
+      }
+      
+      console.log('🎨 Extracted image prompt:', imagePrompt);
+      
+      // Add user message to UI
+      const userMessage = {
+        id: `temp-user-${Date.now()}`,
+        content: originalMessage,
+        role: 'user',
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, userMessage]);
+      setMessage('');
+      setIsLoading(true);
+      
+      // Add loading message for image generation
+      const loadingMessage = {
+        id: `temp-loading-${Date.now()}`,
+        content: `🎨 Generating image: "${imagePrompt}"...\n\nThis may take 10-30 seconds.`,
+        role: 'assistant',
+        timestamp: new Date().toISOString(),
+        isImageLoading: true
+      };
+      setMessages(prev => [...prev, loadingMessage]);
+      
+      // Start image generation
+      const requestPayload = {
+        prompt: imagePrompt,
+        thread_id: threadId === 'new' ? null : parseInt(threadId) || null
+      };
+      
+      console.log('🎨 Sending image generation request:', requestPayload);
+      const task = await generateImage(requestPayload);
+      
+      console.log('🎨 Image generation task started:', task);
+      
+      // Poll for completion
+      const pollProgress = setInterval(async () => {
+        try {
+          const status = await getTaskStatus(task.task_id);
+          console.log('🎨 Task status:', status);
+          console.log('🎨 Status result:', status.result);
+          console.log('🎨 Status image_data:', status.image_data);
+          console.log('🎨 Image base64 from result:', status.result?.image_base64 ? 'PRESENT' : 'MISSING');
+          console.log('🎨 Image base64 from image_data:', status.image_data?.image_base64 ? 'PRESENT' : 'MISSING');
+          
+          if (status.status === 'completed') {
+            clearInterval(pollProgress);
+            
+            // Replace loading message with completed image
+            setMessages(prev => prev.map(msg => 
+              msg.id === loadingMessage.id 
+                ? {
+                    ...msg,
+                    content: '', // Remove success text, just show the image
+                    isImageLoading: false,
+                    generated_image: {
+                      id: status.image_id || Date.now(),
+                      image_base64: status.result?.image_base64 || status.image_data?.image_base64,
+                      image_url: status.result?.image_url || status.image_data?.image_url,
+                      prompt: imagePrompt,
+                      revised_prompt: status.result?.revised_prompt || status.image_data?.revised_prompt,
+                      size: status.result?.size || status.image_data?.size || '1024x1024',
+                      quality: status.result?.quality || status.image_data?.quality || 'standard',
+                      style: status.result?.style || status.image_data?.style || 'vivid',
+                      cost_credits: status.result?.cost_credits || status.image_data?.cost_credits,
+                      processing_time_ms: status.result?.processing_time_ms || status.image_data?.processing_time_ms
+                    }
+                  }
+                : msg
+            ));
+            setIsLoading(false);
+            
+          } else if (status.status === 'failed') {
+            clearInterval(pollProgress);
+            
+            // Replace loading message with error
+            setMessages(prev => prev.map(msg => 
+              msg.id === loadingMessage.id 
+                ? {
+                    ...msg,
+                    content: `❌ Image generation failed: ${status.error || 'Unknown error'}`,
+                    isImageLoading: false
+                  }
+                : msg
+            ));
+            setIsLoading(false);
+          }
+        } catch (err) {
+          console.error('🎨 Error checking task status:', err);
+        }
+      }, 2000);
+      
+      // Cleanup after 5 minutes
+      setTimeout(() => {
+        clearInterval(pollProgress);
+        setIsLoading(false);
+      }, 300000);
+      
+    } catch (error) {
+      console.error('🎨 Image generation failed:', error);
+      
+      // Add error message
+      const errorMessage = {
+        id: `error-${Date.now()}`,
+        content: `❌ Failed to start image generation: ${error.message}`,
+        role: 'assistant',
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, errorMessage]);
+      setIsLoading(false);
+    }
+  };
+
   // File handling functions for admin users
   const handleFileSelect = (event) => {
     setSelectedFiles(Array.from(event.target.files));
@@ -503,6 +685,28 @@ const ClaudeChatPage = () => {
                   <div className="text-gray-100 whitespace-pre-wrap pl-8">
                     {msg.content}
                   </div>
+                  
+                  {/* Image display for generated images */}
+                  {msg.generated_image && msg.generated_image.image_base64 && (
+                    <div className="mt-4 pl-8">
+                      <img 
+                        src={`data:image/png;base64,${msg.generated_image.image_base64}`}
+                        alt={msg.generated_image.prompt || "Generated image"}
+                        className="max-w-full rounded-lg shadow-lg border border-gray-600"
+                        style={{ maxHeight: '512px' }}
+                      />
+                      {msg.generated_image.revised_prompt && (
+                        <p className="text-sm text-gray-400 mt-2 italic">
+                          Revised prompt: {msg.generated_image.revised_prompt}
+                        </p>
+                      )}
+                      {msg.generated_image.processing_time_ms && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Generated in {(msg.generated_image.processing_time_ms / 1000).toFixed(1)}s
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -747,8 +951,11 @@ const ClaudeChatPage = () => {
               </div>
               
               <div className="flex justify-between items-center text-xs text-gray-500">
-                <div>
+                <div className="flex flex-col space-y-1">
                   <span>{selectedModel === 'claude' ? 'Claude' : 'Gemini'} can make mistakes. Consider checking important information.</span>
+                  <span className={`${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                    🎨 For images: Type "/image [description]" or naturally like "generate an image of..."
+                  </span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button className="hover:text-gray-300">

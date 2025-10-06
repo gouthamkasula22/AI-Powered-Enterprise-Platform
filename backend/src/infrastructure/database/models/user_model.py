@@ -50,6 +50,9 @@ class UserModel(Base):
     is_staff = Column(Boolean, default=False, nullable=False)
     is_superuser = Column(Boolean, default=False, nullable=False)
     
+    # Role field (used for RBAC)
+    role = Column(String(50), default='USER', nullable=False)
+    
     # Security fields
     failed_login_attempts = Column(Integer, default=0, nullable=False)
     locked_until = Column(DateTime, nullable=True)
@@ -71,6 +74,7 @@ class UserModel(Base):
     
     # Relationships
     chat_isolation = relationship("UserChatIsolation", back_populates="user", uselist=False)
+    generated_images = relationship("GeneratedImage", back_populates="user", cascade="all, delete-orphan")
     
     # Indexes for performance
     __table_args__ = (

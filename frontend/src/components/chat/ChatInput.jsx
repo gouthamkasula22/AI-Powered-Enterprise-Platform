@@ -1,12 +1,104 @@
 import { useState } from 'react';
 
-const ChatInput = ({ onSendMessage, disabled, placeholder = "Message Assistant..." }) => {
+const ChatInput = ({ onSendMessage, onImageCommand, disabled, placeholder = "Message Assistant..." }) => {
   const [message, setMessage] = useState('');
   const [chatMode, setChatMode] = useState('general');
   
   const handleSubmit = (e) => {
     e.preventDefault();
     if (message.trim() && !disabled) {
+      const trimmedMessage = message.trim().toLowerCase();
+      
+      // Check for explicit /image command first
+      if (message.trim().startsWith('/image ')) {
+        const imagePrompt = message.trim().substring(7); // Remove '/image '
+        if (imagePrompt && onImageCommand) {
+          // First send the user message through normal flow
+          onSendMessage(message, chatMode);
+          // Then trigger image generation
+          onImageCommand(imagePrompt);
+          setMessage('');
+          return;
+        }
+      }
+      
+      // Auto-detect image generation requests
+      const imageKeywords = [
+        'generate an image of', 'generate an image', 'create an image of', 'create an image', 
+        'make an image of', 'make an image', 'draw an image of', 'draw an image',
+        'generate a picture of', 'generate a picture', 'create a picture of', 'create a picture', 
+        'make a picture of', 'make a picture', 'draw a picture of', 'draw a picture',
+        'generate a photo of', 'generate a photo', 'create a photo of', 'create a photo', 
+        'make a photo of', 'make a photo',
+        'generate image of', 'generate image', 'create image of', 'create image', 
+        'make image of', 'make image', 'draw image of', 'draw image',
+        'show me an image of', 'show me an image', 'show me a picture of', 'show me a picture', 
+        'show me a photo of', 'show me a photo',
+        'can you draw', 'can you create', 'can you generate', 'can you make',
+        'i want an image of', 'i want an image', 'i want a picture of', 'i want a picture', 
+        'i want a photo of', 'i want a photo',
+        'paint', 'sketch', 'illustrate', 'visualize'
+      ];
+      
+      const isImageRequest = imageKeywords.some(keyword => trimmedMessage.includes(keyword));
+      
+      console.log('Debug - Message:', message);
+      console.log('Debug - Trimmed message:', trimmedMessage);
+      console.log('Debug - Is image request:', isImageRequest);
+      console.log('Debug - Has onImageCommand:', !!onImageCommand);
+      console.log('Debug - Matching keywords:', imageKeywords.filter(keyword => trimmedMessage.includes(keyword)));
+      
+      if (isImageRequest && onImageCommand) {
+        console.log('Debug - Image request detected! Triggering image generation...');
+        // Extract the prompt by removing common prefixes
+        let imagePrompt = message.trim();
+        const prefixesToRemove = [
+          'generate an image of', 'create an image of', 'make an image of', 'draw an image of',
+          'generate a picture of', 'create a picture of', 'make a picture of', 'draw a picture of',
+          'generate a photo of', 'create a photo of', 'make a photo of',
+          'generate image of', 'create image of', 'make image of', 'draw image of',
+          'show me an image of', 'show me a picture of', 'show me a photo of',
+          'can you draw', 'can you create', 'can you generate', 'can you make',
+          'i want an image of', 'i want a picture of', 'i want a photo of',
+          'paint', 'sketch', 'illustrate', 'visualize'
+        ];
+        
+        // Remove the most specific matching prefix
+        for (const prefix of prefixesToRemove.sort((a, b) => b.length - a.length)) {
+          if (trimmedMessage.startsWith(prefix)) {
+            imagePrompt = message.trim().substring(prefix.length).trim();
+            break;
+          }
+        }
+        
+        // If no specific prefix found, use the whole message
+        if (imagePrompt === message.trim()) {
+          // Try to extract after common words
+          const extractionPatterns = [
+            /(?:generate|create|make|draw|paint|sketch|illustrate|visualize)\s+(?:an?\s+)?(?:image|picture|photo)?\s*(?:of\s+)?(.+)/i,
+            /(?:show me|i want)\s+(?:an?\s+)?(?:image|picture|photo)\s*(?:of\s+)?(.+)/i,
+            /(?:can you)\s+(?:draw|create|generate|make)\s+(.+)/i
+          ];
+          
+          for (const pattern of extractionPatterns) {
+            const match = message.trim().match(pattern);
+            if (match && match[1]) {
+              imagePrompt = match[1].trim();
+              break;
+            }
+          }
+        }
+        
+        if (imagePrompt && imagePrompt !== message.trim()) {
+          // First send the user message through normal flow
+          onSendMessage(message, chatMode);
+          // Then trigger image generation
+          onImageCommand(imagePrompt);
+          setMessage('');
+          return;
+        }
+      }
+      
       onSendMessage(message, chatMode);
       setMessage('');
     }
@@ -77,6 +169,8 @@ const ChatInput = ({ onSendMessage, disabled, placeholder = "Message Assistant..
         <p className="text-xs text-gray-500 mt-1.5 ml-1">
           Press Enter to send, Shift+Enter for new line
           {chatMode === 'general' ? ' • General AI mode' : ' • Document-based mode'}
+          <br />
+          <span className="text-blue-600">🎨 Image generation: Type "/image [description]" or naturally like "generate an image of..."</span>
         </p>
       </form>
     </div>

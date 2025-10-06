@@ -856,6 +856,73 @@ async def stream_message(
             
             yield f"data: {json.dumps({'type': 'user_message_added', 'message_id': user_message.id})}\n\n"
             
+            # Check for image generation command
+            if request.content.startswith("/image "):
+                prompt = request.content[7:].strip()  # Remove "/image " prefix
+                if prompt:
+                    yield f"data: {json.dumps({'type': 'status', 'content': 'Starting image generation...'})}\n\n"
+                    
+                    # Get database session for image service
+                    session_gen = get_db_session()
+                    img_session = await session_gen.__anext__()
+                    
+                    try:
+                        # Import image service
+                        from ...application.services.image_service import ImageService
+                        image_service = ImageService(img_session)
+                        
+                        # Create image record
+                        image_record = await image_service.create_image_record(
+                            user_id=user_id,
+                            prompt=prompt,
+                            thread_id=conversation_id,
+                            message_id=user_message.id
+                        )
+                        
+                        # TODO: Start background task for actual generation
+                        generation_result = {
+                            'task_id': f"img_{image_record.id}",
+                            'image_id': image_record.id,
+                            'estimated_time': '30-60 seconds'
+                        }
+                        
+                        # Create a placeholder message for the image generation task
+                        placeholder_message = await conversation_manager.add_message(
+                            conversation_id=conversation_id,
+                            user_id=None,
+                            content=f"Generating image: \"{prompt}\"\n\nTask ID: {generation_result['task_id']}\nEstimated time: {generation_result['estimated_time']}",
+                            role="assistant",
+                            message_type="image_generation_status"
+                        )
+                        
+                        yield f"data: {json.dumps({'type': 'image_generation_started', 'task_id': generation_result['task_id'], 'image_id': generation_result['image_id'], 'message_id': placeholder_message.id, 'estimated_time': generation_result['estimated_time']})}\n\n"
+                        
+                    except Exception as img_error:
+                        error_message = f"Image generation failed: {str(img_error)}"
+                        error_msg = await conversation_manager.add_message(
+                            conversation_id=conversation_id,
+                            user_id=None,
+                            content=error_message,
+                            role="assistant",
+                            message_type="error"
+                        )
+                        yield f"data: {json.dumps({'type': 'error', 'content': error_message, 'message_id': error_msg.id})}\n\n"
+                    finally:
+                        await img_session.close()
+                    
+                    return  # Exit early for image generation
+                else:
+                    error_message = "Please provide a description for the image after /image command"
+                    error_msg = await conversation_manager.add_message(
+                        conversation_id=conversation_id,
+                        user_id=None,
+                        content=error_message,
+                        role="assistant",
+                        message_type="error"
+                    )
+                    yield f"data: {json.dumps({'type': 'error', 'content': error_message, 'message_id': error_msg.id})}\n\n"
+                    return
+            
             # Process query
             yield f"data: {json.dumps({'type': 'status', 'content': 'Processing query...'})}\n\n"
             processed_query = query_processor.process_query(request.content)
@@ -1048,3 +1115,78 @@ async def langchain_health_check(
             "error": str(e),
             "framework": "langchain_wrapper"
         }
+
+
+@router.get("/conversations/{conversation_id}/images")
+async def get_conversation_images(
+    conversation_id: int,
+    user_id: int = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get generated images for a specific conversation"""
+    try:
+        # Import image service
+        from ...application.services.image_service import ImageService
+        image_service = ImageService(session)
+        
+        # Get images for the conversation
+        images = await image_service.get_user_gallery(
+            user_id=user_id,
+            page=1,
+            limit=50,
+            thread_id=conversation_id
+        )
+        
+        # Images are already filtered by thread_id
+        conversation_images = images["images"]
+        
+        return {
+            "conversation_id": conversation_id,
+            "images": conversation_images,
+            "total": len(conversation_images)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get conversation images: {str(e)}")
+
+
+@router.get("/images/{image_id}/status")
+async def get_image_generation_status(
+    image_id: int,
+    user_id: int = Depends(get_current_user_id),
+    session: AsyncSession = Depends(get_db_session)
+):
+    """Get the status of an image generation task"""
+    try:
+        # Import image service
+        from ...application.services.image_service import ImageService
+        image_service = ImageService(session)
+        
+        # Get the image record
+        image = await image_service.get_image_by_id(image_id, user_id)
+        if not image:
+            raise HTTPException(status_code=404, detail="Image not found")
+        
+        # Get task status if there's a generation task
+        task_status = None
+        if image.get('generation_task'):  # type: ignore[union-attr]
+            task_status = image_service.get_task_status(
+                image['generation_task'].get('task_id', '')  # type: ignore[index]
+            )
+        
+        return {
+            "image_id": image_id,
+            "status": image.get("generation_status"),  # type: ignore[dict-item]
+            "prompt": image.get("prompt"),  # type: ignore[dict-item]
+            "revised_prompt": image.get("revised_prompt"),  # type: ignore[dict-item]
+            "created_at": image.get("created_at"),  # type: ignore[dict-item]
+            "processing_time_ms": image.get("processing_time_ms"),  # type: ignore[dict-item]
+            "error_message": image.get("error_message"),  # type: ignore[dict-item]
+            "has_image_data": bool(image.get("image_base64")),  # type: ignore[dict-item]
+            "task_status": task_status
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get image status: {str(e)}")

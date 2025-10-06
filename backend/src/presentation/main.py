@@ -20,6 +20,7 @@ from .api.endpoints.admin_users import router as admin_users_router
 from .api.endpoints.users import router as users_router  # Temporarily disabled due to syntax errors
 from .api.chat_router import router as chat_router  # Enhanced RAG-powered Chat API router
 from .api.routes.document_routes import router as document_router  # Document upload API
+from .api.image_router import router as image_router  # Image Generation API
 
 # Import configuration
 from ..shared.config import get_settings
@@ -190,6 +191,7 @@ app.include_router(admin_users_router, prefix="/api", tags=["Admin User Manageme
 app.include_router(users_router, prefix="/api/users", tags=["User Management"])  # Temporarily disabled
 app.include_router(chat_router, prefix="/api", tags=["Chat"])  # Chat API
 app.include_router(document_router, tags=["Documents"])  # Document upload API (Admin only)
+app.include_router(image_router, tags=["Image Generation"])  # Image Generation API
 
 # Root endpoint
 @app.get("/", tags=["Root"])

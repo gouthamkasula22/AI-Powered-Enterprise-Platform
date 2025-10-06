@@ -37,6 +37,12 @@ from .chat_auth_models import (
     ChatRateLimit
 )
 
+from .image_models import (
+    GeneratedImage,
+    ImageGenerationTask,
+    ImageGalleryCollection
+)
+
 __all__ = [
     "Base",  # Add Base to exports
     "UserModel", 
@@ -55,5 +61,8 @@ __all__ = [
     "ThreadAccess", 
     "ChatAuditLog",
     "UserChatIsolation",
-    "ChatRateLimit"
+    "ChatRateLimit",
+    "GeneratedImage",
+    "ImageGenerationTask",
+    "ImageGalleryCollection"
 ]

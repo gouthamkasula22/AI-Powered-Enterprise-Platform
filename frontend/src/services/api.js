@@ -11,10 +11,23 @@ const apiClient = axios.create({
 
 // Request interceptor for auth token
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('auth_token')
+  const token = localStorage.getItem('access_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
   }
+  
+  // Debug logging for image requests
+  if (config.url?.includes('/api/images/')) {
+    console.log('🔍 API Request Debug:', {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+      baseURL: config.baseURL,
+      fullURL: `${config.baseURL}${config.url}`,
+      headers: config.headers,
+      data: config.data
+    });
+  }
+  
   return config
 })
 
@@ -36,7 +49,8 @@ apiClient.interceptors.response.use(
       console.log("Session expired or revoked. Logging out...");
       
       // Force logout
-      localStorage.removeItem('auth_token')
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
       localStorage.removeItem('user')
       
       // Display message to user

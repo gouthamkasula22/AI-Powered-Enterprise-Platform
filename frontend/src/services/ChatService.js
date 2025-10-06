@@ -42,6 +42,16 @@ class ChatService {
     }
   }
   
+  static async getMessages(threadId) {
+    try {
+      const response = await axios.get(API_ENDPOINTS.MESSAGES(threadId));
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching messages for thread ${threadId}:`, error);
+      throw error;
+    }
+  }
+  
   static async sendMessage(threadId, messageData) {
     try {
       const response = await axios.post(API_ENDPOINTS.MESSAGES(threadId), messageData);
