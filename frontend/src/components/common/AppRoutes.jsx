@@ -18,6 +18,8 @@ import ProtectedRoute, { AdminRoute, SuperAdminRoute } from '../ProtectedRoute'
 import AdminDashboard from '../../pages/admin/AdminDashboard'
 import UserManagement from '../../pages/admin/UserManagement'
 import SystemSettings from '../../pages/admin/SystemSettings'
+import ExcelPage from '../../pages/excel/ExcelPage'
+import ExcelDocumentPage from '../../pages/excel/ExcelDocumentPage'
 
 const AppRoutes = () => {
   return (
@@ -55,6 +57,24 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <ClaudeChatPage />
+          </ProtectedRoute>
+        } 
+      />
+      
+      {/* Excel Q&A routes */}
+      <Route 
+        path="/excel" 
+        element={
+          <ProtectedRoute>
+            <ExcelPage />
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/excel/:id" 
+        element={
+          <ProtectedRoute>
+            <ExcelDocumentPage />
           </ProtectedRoute>
         } 
       />

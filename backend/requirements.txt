@@ -21,6 +21,12 @@ openai>=1.30.0
 pillow>=10.0.0
 httpx>=0.24.0
 
+# Excel processing dependencies
+pandas>=2.0.0
+openpyxl>=3.1.2
+xlrd>=2.0.1
+numpy>=1.24.0
+
 # LangChain dependencies
 langchain>=0.3.27
 langchain-community>=0.3.30

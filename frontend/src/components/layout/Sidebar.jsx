@@ -55,6 +55,21 @@ const Sidebar = ({ isOpen }) => {
           
           <li>
             <NavLink 
+              to="/excel" 
+              className={({ isActive }) => `
+                flex items-center px-4 py-3 text-sm
+                ${isActive ? 'bg-gray-50 text-blue-600' : 'text-gray-700 hover:bg-gray-50'}
+                rounded-none border-l-4
+                ${isActive ? 'border-blue-500' : 'border-transparent'}
+              `}
+            >
+              <span className="material-icons-outlined text-xl mr-3">table_chart</span>
+              {isOpen && <span>Excel Q&A</span>}
+            </NavLink>
+          </li>
+          
+          <li>
+            <NavLink 
               to="/images/generate" 
               className={({ isActive }) => `
                 flex items-center px-4 py-3 text-sm

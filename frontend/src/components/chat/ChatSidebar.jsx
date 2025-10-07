@@ -1,9 +1,12 @@
 import { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Trash2, Archive, MoreVertical } from 'lucide-react';
 
 const ChatSidebar = ({ threads, activeThreadId, onSelectThread, onNewThread, onDeleteThread, onArchiveThread }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const handleDeleteConversation = async (threadId) => {
     setIsDeleting(true);
@@ -27,10 +30,34 @@ const ChatSidebar = ({ threads, activeThreadId, onSelectThread, onNewThread, onD
 
   return (
     <div className="hidden md:block w-64 border-r border-gray-200 h-full overflow-y-auto bg-white">
+      {/* Navigation Tabs */}
       <div className="p-4 border-b border-gray-200">
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <button
+            onClick={() => navigate('/chat/new')}
+            className={`px-3 py-2 text-xs font-semibold rounded-md transition-colors ${
+              location.pathname.startsWith('/chat')
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Chat
+          </button>
+          <button
+            onClick={() => navigate('/excel')}
+            className={`px-3 py-2 text-xs font-semibold rounded-md transition-colors ${
+              location.pathname.startsWith('/excel')
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Excel Q&A
+          </button>
+        </div>
+        
         <button 
           onClick={onNewThread}
-          className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+          className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
         >
           <span className="mr-2">+</span>
           New Chat
@@ -50,11 +77,10 @@ const ChatSidebar = ({ threads, activeThreadId, onSelectThread, onNewThread, onD
                   <button
                     onClick={() => onSelectThread(thread.id)}
                     className={`
-                      flex items-center px-4 py-2 text-sm w-full text-left flex-1
-                      ${thread.id === activeThreadId ? 'bg-gray-100 text-gray-900' : 'text-gray-700 hover:bg-gray-50'}
+                      flex items-center px-4 py-2 text-sm w-full text-left flex-1 transition-colors
+                      ${thread.id === activeThreadId ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-700 hover:bg-gray-50'}
                     `}
                   >
-                    <span className="text-gray-400 mr-3 text-sm">💬</span>
                     <span className="truncate flex-1">{thread.title}</span>
                   </button>
                   

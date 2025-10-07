@@ -175,8 +175,31 @@ const ClaudeSidebar = ({ isOpen }) => {
           <span className="text-lg font-semibold">Chat Assistant</span>
         </div>
         
-        {/* New Chat Button */}
-        <div className="px-4 py-4">
+        {/* Navigation Tabs */}
+        <div className="px-4 py-4 space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Link
+              to="/chat/new"
+              className={`px-3 py-2 text-xs font-semibold rounded-md transition-colors text-center ${
+                window.location.pathname.startsWith('/chat')
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              Chat
+            </Link>
+            <Link
+              to="/excel"
+              className={`px-3 py-2 text-xs font-semibold rounded-md transition-colors text-center ${
+                window.location.pathname.startsWith('/excel')
+                  ? 'bg-orange-500 text-white'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              }`}
+            >
+              Excel Q&A
+            </Link>
+          </div>
+          
           <Link
             to="/chat/new"
             className="flex items-center justify-center w-full px-4 py-2.5 text-center rounded-md bg-orange-500/10 text-orange-500 hover:bg-orange-500/20"

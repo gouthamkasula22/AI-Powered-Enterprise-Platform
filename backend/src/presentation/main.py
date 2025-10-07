@@ -21,6 +21,7 @@ from .api.endpoints.users import router as users_router  # Temporarily disabled 
 from .api.chat_router import router as chat_router  # Enhanced RAG-powered Chat API router
 from .api.routes.document_routes import router as document_router  # Document upload API
 from .api.image_router import router as image_router  # Image Generation API
+from .api.v1.excel_router import router as excel_router  # Excel Q&A Assistant API
 
 # Import configuration
 from ..shared.config import get_settings
@@ -184,6 +185,7 @@ app.include_router(users_router, prefix="/api/users", tags=["User Management"]) 
 app.include_router(chat_router, prefix="/api", tags=["Chat"])  # Chat API
 app.include_router(document_router, tags=["Documents"])  # Document upload API (Admin only)
 app.include_router(image_router, tags=["Image Generation"])  # Image Generation API
+app.include_router(excel_router, prefix="/api/v1", tags=["Excel Q&A"])  # Excel Q&A Assistant API
 
 # Root endpoint
 @app.get("/", tags=["Root"])

@@ -12,6 +12,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .config import BaseModel
 
+# Import Excel models to register them with SQLAlchemy
+from ...domain.models.excel_models import ExcelDocument, ExcelSheet, ExcelQuery
+
 
 class UserModel(BaseModel):
     """

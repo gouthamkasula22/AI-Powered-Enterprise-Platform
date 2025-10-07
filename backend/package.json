@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@ag-grid-community/core": "^31.0.1",
+    "ag-grid-react": "^31.0.1",
+    "plotly.js": "^2.27.1",
+    "react-dropzone": "^14.2.3",
+    "react-plotly.js": "^2.6.0"
+  }
+}
