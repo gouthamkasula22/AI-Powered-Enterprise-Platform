@@ -1,8 +1,8 @@
 # AI-Powered Enterprise Platform
 
-[![CI](https://github.com/gouthamkasula22/User-Authentication-System/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gouthamkasula22/User-Authentication-System/actions/workflows/ci.yml)
-[![Docker Build](https://github.com/gouthamkasula22/User-Authentication-System/actions/workflows/docker-build.yml/badge.svg?branch=main)](https://github.com/gouthamkasula22/User-Authentication-System/actions/workflows/docker-build.yml)
-[![codecov](https://codecov.io/gh/gouthamkasula22/User-Authentication-System/branch/main/graph/badge.svg)](https://codecov.io/gh/gouthamkasula22/User-Authentication-System)
+[![CI](https://github.com/gouthamkasula22/AI-Powered-Enterprise-Platform/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gouthamkasula22/AI-Powered-Enterprise-Platform/actions/workflows/ci.yml)
+[![Docker Compose](https://github.com/gouthamkasula22/AI-Powered-Enterprise-Platform/actions/workflows/docker-build.yml/badge.svg?branch=main)](https://github.com/gouthamkasula22/AI-Powered-Enterprise-Platform/actions/workflows/docker-build.yml)
+[![codecov](https://codecov.io/gh/gouthamkasula22/AI-Powered-Enterprise-Platform/branch/main/graph/badge.svg)](https://codecov.io/gh/gouthamkasula22/AI-Powered-Enterprise-Platform)
 
 A production-ready authentication system with integrated AI capabilities, built using FastAPI and React. This platform combines secure user management with powerful AI features including natural language Excel analysis, image generation, and Claude-powered chat.
 
