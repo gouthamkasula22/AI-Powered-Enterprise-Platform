@@ -13,7 +13,7 @@ jinja2==3.1.2
 aiofiles==23.2.1
 
 # AI and RAG dependencies
-google-generativeai>=0.8.3
+google-generativeai==0.8.3
 anthropic>=0.69.0,<1.0.0
 tiktoken==0.8.0
 websockets==12.0
@@ -32,7 +32,7 @@ langchain>=0.3.27
 langchain-community>=0.3.30
 langchain-chroma>=0.2.6
 langchain-anthropic>=0.3.20
-langchain-google-genai>=2.1.0
+# langchain-google-genai==2.1.9  # Commented out - conflicts with google-generativeai and not used in codebase
 
 # Email dependencies
 sendgrid==6.11.0
