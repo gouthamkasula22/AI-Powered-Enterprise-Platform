@@ -64,7 +64,7 @@ result = 1
 """
         is_valid, error = self.validator.validate(code)
         assert is_valid is False
-        assert "file I/O" in error.lower() or "to_csv" in error.lower()
+        assert error is not None and ("file I/O" in error.lower() or "to_csv" in error.lower())
     
     def test_syntax_error(self):
         """Test that syntax errors are caught."""

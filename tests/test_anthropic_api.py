@@ -49,6 +49,8 @@ print("="*60)
 for model in models_to_test:
     print(f"\nTesting: {model}")
     try:
+        from anthropic.types import TextBlock
+        
         message = client.messages.create(
             model=model,
             max_tokens=100,
@@ -59,7 +61,12 @@ for model in models_to_test:
                 }
             ]
         )
-        response = message.content[0].text
+        # Extract text from TextBlock
+        response = ""
+        for block in message.content:
+            if isinstance(block, TextBlock):
+                response = block.text
+                break
         print(f"  [OK] SUCCESS! Response: {response}")
         print(f"  [OK] This model works! Use: {model}")
         break  # Found a working model, stop testing

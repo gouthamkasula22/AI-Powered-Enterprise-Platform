@@ -11,6 +11,9 @@ async def check_tables():
     dm = DatabaseManager()
     await dm.initialize()
     
+    if dm._engine is None:
+        raise RuntimeError("Database engine not initialized")
+    
     async with dm._engine.connect() as conn:
         # Check excel_documents columns
         result = await conn.execute(text(

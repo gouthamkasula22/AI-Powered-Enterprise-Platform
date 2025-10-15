@@ -15,6 +15,8 @@ async def drop_and_recreate_excel_tables():
     await db_manager.initialize()
     
     engine = db_manager._engine
+    if engine is None:
+        raise RuntimeError("Database engine not initialized")
     
     # Drop existing tables
     async with engine.begin() as conn:

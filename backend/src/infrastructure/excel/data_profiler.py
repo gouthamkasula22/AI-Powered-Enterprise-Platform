@@ -110,15 +110,15 @@ class DataProfiler:
         
         return {
             'data_type': 'numeric',
-            'min': float(clean_series.min()),
-            'max': float(clean_series.max()),
-            'mean': float(clean_series.mean()),
-            'median': float(clean_series.median()),
-            'std': float(clean_series.std()) if len(clean_series) > 1 else 0.0,
-            'q25': float(clean_series.quantile(0.25)),
-            'q75': float(clean_series.quantile(0.75)),
-            'sum': float(clean_series.sum()),
-            'variance': float(clean_series.var()) if len(clean_series) > 1 else 0.0
+            'min': float(clean_series.min()),  # type: ignore
+            'max': float(clean_series.max()),  # type: ignore
+            'mean': float(clean_series.mean()),  # type: ignore
+            'median': float(clean_series.median()),  # type: ignore
+            'std': float(clean_series.std()) if len(clean_series) > 1 else 0.0,  # type: ignore
+            'q25': float(clean_series.quantile(0.25)),  # type: ignore
+            'q75': float(clean_series.quantile(0.75)),  # type: ignore
+            'sum': float(clean_series.sum()),  # type: ignore
+            'variance': float(clean_series.var()) if len(clean_series) > 1 else 0.0  # type: ignore
         }
     
     def _text_stats(self, series: pd.Series) -> Dict[str, Any]:

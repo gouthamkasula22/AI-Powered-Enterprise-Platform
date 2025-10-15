@@ -6,6 +6,7 @@ import json
 import logging
 from typing import Dict, Optional, Any
 from anthropic import Anthropic
+from anthropic.types import TextBlock
 from sqlalchemy.orm import Session
 
 from src.domain.models.excel_models import ExcelDocument, ExcelSheet
@@ -220,8 +221,14 @@ class QueryProcessor:
                 ]
             )
             
-            # Extract text from response
-            response_text = message.content[0].text
+            # Extract text from response - only process TextBlock types
+            response_text = ""
+            for block in message.content:
+                if isinstance(block, TextBlock):
+                    response_text += block.text
+            
+            if not response_text:
+                raise Exception("No text content in API response")
             
             logger.debug(f"Claude API response: {response_text[:200]}...")
             return response_text
