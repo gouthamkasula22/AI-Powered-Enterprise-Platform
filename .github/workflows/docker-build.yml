@@ -20,23 +20,23 @@ jobs:
       
       - name: Validate docker-compose configuration
         run: |
-          docker-compose config --quiet
+          docker compose config --quiet
       
       - name: Pull Docker images
         run: |
-          docker-compose pull
+          docker compose pull
       
       - name: Test container startup
         run: |
-          docker-compose up -d
-          sleep 10
-          docker-compose ps
+          docker compose up -d
+          sleep 15
+          docker compose ps
       
       - name: Check service health
         run: |
-          docker-compose ps | grep "Up" || exit 1
+          docker compose ps | grep "Up" || exit 1
       
       - name: Cleanup
         if: always()
         run: |
-          docker-compose down -v
+          docker compose down -v
