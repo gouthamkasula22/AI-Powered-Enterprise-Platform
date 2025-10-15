@@ -2,7 +2,6 @@
 
 [![CI](https://github.com/gouthamkasula22/AI-Powered-Enterprise-Platform/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gouthamkasula22/AI-Powered-Enterprise-Platform/actions/workflows/ci.yml)
 [![Docker Compose](https://github.com/gouthamkasula22/AI-Powered-Enterprise-Platform/actions/workflows/docker-build.yml/badge.svg?branch=main)](https://github.com/gouthamkasula22/AI-Powered-Enterprise-Platform/actions/workflows/docker-build.yml)
-[![codecov](https://codecov.io/gh/gouthamkasula22/AI-Powered-Enterprise-Platform/graph/badge.svg?token=LJLL5PE84T)](https://codecov.io/gh/gouthamkasula22/AI-Powered-Enterprise-Platform)
 
 A production-ready authentication system with integrated AI capabilities, built using FastAPI and React. This platform combines secure user management with powerful AI features including natural language Excel analysis, image generation, and Claude-powered chat.
 
@@ -49,7 +48,7 @@ The backend is built with FastAPI 0.104+ running on Python 3.11+. It uses Postgr
 - **Infrastructure Layer**: Database implementations, external API integrations (Anthropic, Stability AI, Google AI)
 - **Presentation Layer**: FastAPI routes and API schemas
 
-Key backend technologies include Alembic for database migrations, Redis for caching and background tasks, and comprehensive test coverage using pytest with async support. The Excel processing uses pandas, openpyxl, and includes a custom code validator with sandboxing.
+Key backend technologies include Alembic for database migrations, Redis for caching and background tasks, and pytest for automated testing with async support. The Excel processing uses pandas, openpyxl, and includes a custom code validator with sandboxing.
 
 ### Frontend Stack
 The frontend uses React 18 with Vite for fast development and optimized builds. It's styled with Tailwind CSS for a modern, responsive design. State management uses React Context API, and routing is handled by React Router v6.

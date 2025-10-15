@@ -80,15 +80,15 @@ class DataProfiler:
             'unique_percentage': float(series.nunique() / len(series) * 100) if len(series) > 0 else 0
         }
         
-        # Type-specific statistics
-        if pd.api.types.is_numeric_dtype(series):
+        # Type-specific statistics (check boolean BEFORE numeric as pandas considers bool as numeric)
+        if pd.api.types.is_bool_dtype(series):
+            stats.update(self._boolean_stats(series))
+        elif pd.api.types.is_numeric_dtype(series):
             stats.update(self._numeric_stats(series))
         elif pd.api.types.is_string_dtype(series) or series.dtype == object:
             stats.update(self._text_stats(series))
         elif pd.api.types.is_datetime64_any_dtype(series):
             stats.update(self._datetime_stats(series))
-        elif pd.api.types.is_bool_dtype(series):
-            stats.update(self._boolean_stats(series))
         
         return stats
     
@@ -220,29 +220,37 @@ class DataProfiler:
         if len(clean_series) == 0:
             return 'empty'
         
-        # Check if all values are unique (potential ID column)
-        if clean_series.nunique() == len(clean_series):
-            return 'identifier'
-        
-        # Numeric types
-        if pd.api.types.is_numeric_dtype(series):
-            # Check if it's a year
-            if clean_series.between(1900, 2100).all():
-                return 'year'
-            # Check if it's a percentage (values between 0 and 1 or 0 and 100)
-            if (clean_series >= 0).all() and (clean_series <= 1).all():
-                return 'percentage'
-            if (clean_series >= 0).all() and (clean_series <= 100).all() and clean_series.nunique() < 100:
-                return 'percentage'
-            return 'numeric'
+        # Boolean (check early)
+        if pd.api.types.is_bool_dtype(series):
+            return 'boolean'
         
         # Datetime
         if pd.api.types.is_datetime64_any_dtype(series):
             return 'datetime'
         
-        # Boolean
-        if pd.api.types.is_bool_dtype(series):
-            return 'boolean'
+        # Numeric types (check specific numeric patterns before identifier check)
+        if pd.api.types.is_numeric_dtype(series):
+            # Check if all values are unique and column name suggests ID (check before percentage)
+            if clean_series.nunique() == len(clean_series) and ('id' in str(series.name).lower() or str(series.name).lower() == 'id'):
+                return 'identifier'
+            # Check if it's a percentage (values between 0 and 1 only, not integers)
+            if (clean_series >= 0).all() and (clean_series <= 1).all() and not all(clean_series == clean_series.astype(int)):
+                return 'percentage'
+            # Check if it's a year
+            if clean_series.between(1900, 2100).all():
+                return 'year'
+            return 'numeric'
+        
+        # Text/String columns
+        if pd.api.types.is_string_dtype(series) or series.dtype == object:
+            # Check if all values are unique and column name suggests ID
+            if clean_series.nunique() == len(clean_series) and ('id' in str(series.name).lower()):
+                return 'identifier'
+            # Check if it's categorical (limited unique values compared to total)
+            unique_ratio = clean_series.nunique() / len(clean_series)
+            if unique_ratio < 0.5 and clean_series.nunique() < 50:
+                return 'categorical'
+            return 'text'
         
         # Categorical (text with limited unique values)
         if series.dtype == object:
