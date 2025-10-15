@@ -2,7 +2,6 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 import HomePage from '../../pages/HomePage'
 import LoginPage from '../../pages/LoginPage'
 import RegisterPage from '../../pages/RegisterPage'
-import DashboardPage from '../../pages/DashboardPage'
 import ClaudeChatPage from '../../pages/ClaudeChatPage'
 import VerifyEmailPage from '../../pages/VerifyEmailPage'
 import ForgotPasswordPage from '../../pages/ForgotPasswordPage'
@@ -33,17 +32,7 @@ const AppRoutes = () => {
       <Route path="/auth/callback" element={<OAuthCallback />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
       
-      {/* Protected user routes */}
-      <Route 
-        path="/dashboard" 
-        element={
-          <ProtectedRoute>
-            <DashboardPage />
-          </ProtectedRoute>
-        } 
-      />
-      
-      {/* Chat routes */}
+      {/* Chat routes - Default landing page after login */}
       <Route 
         path="/chat" 
         element={

@@ -6,11 +6,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTheme } from '../../contexts/ThemeContext';
 import ExcelUpload from '../../components/excel/ExcelUpload';
 import DocumentList from '../../components/excel/DocumentList';
 import { getUserDocuments } from '../../services/excel/excelService';
 
 const ExcelPage = () => {
+  const { isDarkMode } = useTheme();
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -51,12 +53,12 @@ const ExcelPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className={`min-h-screen py-8 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Excel Q&A Assistant</h1>
-          <p className="mt-2 text-gray-600">
+          <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Excel Q&A Assistant</h1>
+          <p className={`mt-2 ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
             Upload Excel files and ask questions in natural language
           </p>
         </div>
@@ -75,15 +77,15 @@ const ExcelPage = () => {
 
         {/* Documents List */}
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Your Documents</h2>
+          <h2 className={`text-xl font-semibold mb-4 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Your Documents</h2>
           {loading ? (
             <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+              <div className={`animate-spin rounded-full h-12 w-12 border-b-2 ${isDarkMode ? 'border-orange-500' : 'border-blue-600'}`}></div>
             </div>
           ) : documents.length === 0 ? (
-            <div className="text-center py-12 bg-white rounded-lg shadow">
+            <div className={`text-center py-12 rounded-lg shadow ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
               <svg
-                className="mx-auto h-12 w-12 text-gray-400"
+                className={`mx-auto h-12 w-12 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -95,8 +97,8 @@ const ExcelPage = () => {
                   d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No documents yet</h3>
-              <p className="mt-1 text-sm text-gray-500">
+              <h3 className={`mt-2 text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>No documents yet</h3>
+              <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 Upload an Excel file to get started
               </p>
             </div>

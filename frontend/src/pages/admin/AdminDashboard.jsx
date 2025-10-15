@@ -141,10 +141,10 @@ const AdminDashboard = () => {
                 </div>
               )}
               <Link
-                to="/dashboard"
+                to="/chat/new"
                 className="text-sm text-gray-600 hover:text-gray-900 transition-colors"
               >
-                Back to User Dashboard
+                Back to Chat
               </Link>
             </div>
           </div>

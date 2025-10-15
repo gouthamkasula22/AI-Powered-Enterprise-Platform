@@ -88,12 +88,12 @@ const OAuthCallback = () => {
 
                     setStatus('Authentication successful! Redirecting...');
 
-                    // Redirect to the return URL or dashboard
+                    // Redirect to the return URL or chat page
                     const returnUrl = localStorage.getItem('oauth_return_url');
                     localStorage.removeItem('oauth_return_url');
                     
                     setTimeout(() => {
-                        navigate(returnUrl || '/dashboard');
+                        navigate(returnUrl || '/chat/new');
                     }, 1500);
                 } else {
                     throw new Error('Login failed');

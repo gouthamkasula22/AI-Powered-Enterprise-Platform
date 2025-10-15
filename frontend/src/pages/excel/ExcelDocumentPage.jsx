@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTheme } from '../../contexts/ThemeContext';
 import {
   getDocument,
   getDocumentSheets,
@@ -22,6 +23,7 @@ import QueryHistory from '../../components/excel/QueryHistory';
 const ExcelDocumentPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { isDarkMode } = useTheme();
 
   const [document, setDocument] = useState(null);
   const [sheets, setSheets] = useState([]);
@@ -154,13 +156,13 @@ const ExcelDocumentPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className={`min-h-screen py-8 ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-6">
           <button
             onClick={() => navigate('/excel')}
-            className="text-blue-600 hover:text-blue-800 font-medium mb-4 flex items-center"
+            className={`font-medium mb-4 flex items-center ${isDarkMode ? 'text-orange-500 hover:text-orange-400' : 'text-blue-600 hover:text-blue-800'}`}
           >
             <svg className="h-5 w-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -170,8 +172,8 @@ const ExcelDocumentPage = () => {
           
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">{document.original_filename}</h1>
-              <p className="mt-1 text-sm text-gray-600">
+              <h1 className={`text-3xl font-bold ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{document.original_filename}</h1>
+              <p className={`mt-1 text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
                 {document.sheet_count} sheet{document.sheet_count !== 1 ? 's' : ''} • {' '}
                 {document.total_rows.toLocaleString()} rows • {' '}
                 {document.total_columns} columns
@@ -181,9 +183,9 @@ const ExcelDocumentPage = () => {
             <span
               className={`
                 inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
-                ${document.status === 'ready' ? 'bg-green-100 text-green-800' : ''}
-                ${document.status === 'processing' ? 'bg-yellow-100 text-yellow-800' : ''}
-                ${document.status === 'error' ? 'bg-red-100 text-red-800' : ''}
+                ${document.status === 'ready' ? (isDarkMode ? 'bg-green-900/50 text-green-400' : 'bg-green-100 text-green-800') : ''}
+                ${document.status === 'processing' ? (isDarkMode ? 'bg-yellow-900/50 text-yellow-400' : 'bg-yellow-100 text-yellow-800') : ''}
+                ${document.status === 'error' ? (isDarkMode ? 'bg-red-900/50 text-red-400' : 'bg-red-100 text-red-800') : ''}
               `}
             >
               {document.status.charAt(0).toUpperCase() + document.status.slice(1)}
@@ -191,7 +193,7 @@ const ExcelDocumentPage = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className={`grid grid-cols-1 lg:grid-cols-3 gap-6 ${isDarkMode ? 'text-white' : ''}`}>
           {/* Left Column - Sheets and Preview */}
           <div className="lg:col-span-2 space-y-6">
             {/* Sheet Selector */}

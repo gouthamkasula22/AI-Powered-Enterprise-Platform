@@ -6,9 +6,6 @@ import ClaudeLayout from '../components/layout/ClaudeLayout';
 import { generateImage, getTaskStatus } from '../services/ImageService';
 import axios from 'axios';
 
-// Import MockAuthContext for development if needed
-// import { useMockAuth } from '../contexts/MockAuthContext';
-
 const ClaudeChatPage = () => {
   const { user, token } = useAuth();
   const { isDarkMode } = useTheme();

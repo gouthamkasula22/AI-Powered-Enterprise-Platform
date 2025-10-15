@@ -28,8 +28,8 @@ const VerifyEmailPage = () => {
         if (isAuthenticated) {
           await refreshUserData()
           // Don't show toast here since AuthContext already shows it
-          // If user is already logged in, redirect to dashboard
-          setTimeout(() => navigate('/dashboard'), 2000)
+          // If user is already logged in, redirect to chat
+          setTimeout(() => navigate('/chat/new'), 2000)
         } else {
           // If not logged in, redirect to login
           setTimeout(() => navigate('/login'), 3000)
@@ -65,7 +65,7 @@ const VerifyEmailPage = () => {
               </div>
               <h2 className="mt-4 text-2xl font-bold text-green-600">Email Verified!</h2>
               <p className="mt-2 text-gray-600">
-                {isAuthenticated ? 'Redirecting to dashboard...' : 'Redirecting to login...'}
+                {isAuthenticated ? 'Redirecting to chat...' : 'Redirecting to login...'}
               </p>
             </div>
           )}

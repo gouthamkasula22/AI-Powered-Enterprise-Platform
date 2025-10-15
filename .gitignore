@@ -63,3 +63,5 @@ coverage.xml
 
 # Testing
 .pytest_cache/
+
+backend/uploads/
