@@ -15,7 +15,7 @@ aiofiles==23.2.1
 # AI and RAG dependencies
 google-generativeai==0.8.3
 anthropic>=0.69.0,<1.0.0
-tiktoken==0.8.0
+tiktoken==0.12.0
 websockets==12.0
 openai>=1.30.0
 pillow>=10.0.0
