@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/gouthamkasula22/AI-Powered-Enterprise-Platform/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gouthamkasula22/AI-Powered-Enterprise-Platform/actions/workflows/ci.yml)
 [![Docker Compose](https://github.com/gouthamkasula22/AI-Powered-Enterprise-Platform/actions/workflows/docker-build.yml/badge.svg?branch=main)](https://github.com/gouthamkasula22/AI-Powered-Enterprise-Platform/actions/workflows/docker-build.yml)
-[![codecov](https://codecov.io/gh/gouthamkasula22/AI-Powered-Enterprise-Platform/branch/main/graph/badge.svg)](https://codecov.io/gh/gouthamkasula22/AI-Powered-Enterprise-Platform)
+[![codecov](https://codecov.io/gh/gouthamkasula22/AI-Powered-Enterprise-Platform/graph/badge.svg?token=LJLL5PE84T)](https://codecov.io/gh/gouthamkasula22/AI-Powered-Enterprise-Platform)
 
 A production-ready authentication system with integrated AI capabilities, built using FastAPI and React. This platform combines secure user management with powerful AI features including natural language Excel analysis, image generation, and Claude-powered chat.
 
