@@ -35,7 +35,7 @@ langchain-anthropic>=0.3.20
 # langchain-google-genai==2.1.9  # Commented out - conflicts with google-generativeai and not used in codebase
 
 # Email dependencies
-sendgrid==6.11.0
+sendgrid==6.12.5
 aiosmtplib==3.0.1
 
 # Development dependencies
